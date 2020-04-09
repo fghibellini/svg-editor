@@ -9,6 +9,7 @@ let current = null;
 let handlePointA = addPoint({ x: 0, y: 0 });
 let handlePointB = addPoint({ x: 0, y: 0 });
 let handleLine = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
+let lastSegment = null;
 
 function addPoint(p) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -38,6 +39,7 @@ canvas.addEventListener("mouseup", evt => {
     handleLine.setAttribute("visibility", "hidden");
     handlePointA.setAttribute("visibility", "hidden");
     handlePointB.setAttribute("visibility", "hidden");
+    lastSegment = null;
   }
 }, true);
 
@@ -61,6 +63,10 @@ function updateHandles({ x, y}) {
   handleLine.setAttribute("y1", y);
   handleLine.setAttribute("x2", pB.x);
   handleLine.setAttribute("y2", pB.y);
+  if (lastSegment) {
+    const prev = points[points.length - 2];
+    lastSegment.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x} ${prev.y} ${pB.x} ${pB.y} ${current.x} ${current.y}`);
+  }
 }
 
 canvas.addEventListener("mousedown", evt => {
@@ -79,5 +85,6 @@ canvas.addEventListener("mousedown", evt => {
     path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
     path.setAttribute("stroke", "pink");
     canvas.appendChild(path);
+    lastSegment = path;
   }
 }, true);
