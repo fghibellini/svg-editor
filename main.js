@@ -46,6 +46,8 @@ canvas.addEventListener("mouseup", evt => {
 canvas.addEventListener("mousemove", evt => {
   if (isPressed) {
     const { x, y } = evt;
+    current.hx = x;
+    current.hy = y;
     updateHandles({ x, y });
   }
 }, true);
@@ -65,7 +67,7 @@ function updateHandles({ x, y}) {
   handleLine.setAttribute("y2", pB.y);
   if (lastSegment) {
     const prev = points[points.length - 2];
-    lastSegment.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x} ${prev.y} ${pB.x} ${pB.y} ${current.x} ${current.y}`);
+    lastSegment.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${pB.x} ${pB.y} ${current.x} ${current.y}`);
   }
 }
 
@@ -76,7 +78,7 @@ canvas.addEventListener("mousedown", evt => {
   handlePointB.setAttribute("visibility", "visible");
   const { x, y } = evt;
   addPoint({ x, y });
-  current = { x, y };
+  current = { x, y, hx: x, hy: y };
   points.push(current);
   updateHandles({ x, y });
   if (points.length > 1) {
@@ -84,6 +86,7 @@ canvas.addEventListener("mousedown", evt => {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
     path.setAttribute("stroke", "pink");
+    path.setAttribute("fill", "none");
     canvas.appendChild(path);
     lastSegment = path;
   }
