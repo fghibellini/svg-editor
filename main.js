@@ -67,13 +67,13 @@ canvas.addEventListener("mouseup", evt => {
       lastSegment = null;
       currentPoint.setAttribute("fill", "#ccc");
       currentPoint = null;
-    } else if (clickingPoint) {
+    } else if (clickingPoint && clickingPoint === points[0]) {
       console.log("mouseup clicking point");
       const t = clickingPoint;
       points.push(t);
       const prev = points[points.length - 2];
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x} ${t.y} ${t.x} ${t.y}`);
+      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x - (t.hx - t.x)} ${t.y - (t.hy - t.y)} ${t.x} ${t.y}`);
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
       zIndexLines.insertAdjacentElement('afterend', path);
