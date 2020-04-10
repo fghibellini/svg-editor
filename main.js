@@ -32,7 +32,7 @@ let bezierState = {
 };
 
 canvas.addEventListener("mouseup", evt => {
-  const { drawingBezier, isPressed, points } = bezierState;
+  const { drawingBezier, isPressed, points, clickingPoint } = bezierState;
   if (drawingBezier) {
     if (isPressed) {
       console.log("mouseup is pressed");
@@ -64,13 +64,22 @@ canvas.addEventListener("mouseup", evt => {
 }, true);
 
 canvas.addEventListener("mousemove", evt => {
-  const { isPressed, points } = bezierState;
+  const { x, y } = evt;
+  const { isPressed, points, clickingPoint } = bezierState;
+  console.log("mousemove");
   if (isPressed) {
-    const { x, y } = evt;
+    console.log("is pressed");
     const current = points[points.length - 1];
     current.hx = x;
     current.hy = y;
     onHandleChange(current);
+  } else if (clickingPoint) {
+    console.log("moving point!");
+    clickingPoint.x = x;
+    clickingPoint.y = y;
+    onHandleChange(clickingPoint);
+  } else {
+    console.log("nothing");
   }
 }, true);
 
@@ -97,7 +106,7 @@ canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   if (t) {
     console.log("setting clickingPoint");
-    clickingPoint = t;
+    bezierState.clickingPoint = t;
   } else {
     const { x, y } = evt;
     const { drawingBezier, isPressed, points } = bezierState;
@@ -137,6 +146,7 @@ canvas.addEventListener("mouseover", evt => {
 
 canvas.addEventListener("mouseleave", evt => {
   //currentPoint.setAttribute("fill", "#ff0000");
+  console.log("mouseleave");
   const point = evt.target._Z_point;
   if (point) {
     evt.target.setAttribute("fill", "#ccc");
