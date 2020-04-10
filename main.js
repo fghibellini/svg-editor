@@ -44,7 +44,6 @@ let bezierState = {
 canvas.addEventListener("mouseup", evt => {
   const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
   if (isPressed) {
-    console.log("mouseup is pressed");
     const { x, y } = evt;
     const current = points[points.length - 1];
     bezierState.isPressed = false;
@@ -56,15 +55,17 @@ canvas.addEventListener("mouseup", evt => {
   } else if (clickedPoint && clickedPointWasMoved) {
     bezierState.clickedPoint = null;
   } else if (clickedPoint && clickedPoint === points[0]) {
-    console.log("mouseup clicking point");
     const t = clickedPoint;
-    points.push(t); // TODO don't add point twice, have a closed flag instead
-    const prev = points[points.length - 2];
+    const prev = points[points.length - 1];
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
     path.setAttribute("stroke", "pink");
     path.setAttribute("fill", "none");
     zIndexLines.insertAdjacentElement('afterend', path);
+    t.$lft_seg = path;
+    t.prev = prev;
+    prev.next = t;
+
     bezierState.drawingBezier = false;
     objects.push({ isClosed: true, points }); // TODO map points
     bezierState.points = [];
@@ -83,9 +84,7 @@ function computeDistance(p1, p2) {
 canvas.addEventListener("mousemove", evt => {
   const { x, y } = evt;
   const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle } = bezierState;
-  console.log("mousemove");
   if (isPressed) {
-    console.log("is pressed");
     const current = points[points.length - 1];
     current.hx = x - current.x;
     current.hy = y - current.y;
@@ -108,7 +107,6 @@ canvas.addEventListener("mousemove", evt => {
       onHandleChange(clickedPoint);
     }
   } else {
-    console.log("nothing");
   }
 }, true);
 
@@ -139,12 +137,10 @@ canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
   if (t) {
-    console.log("setting clickedPoint");
     bezierState.clickedPoint = t;
     bezierState.clickedPointWasMoved = false;
     bezierState.clickedPointStartingCoords = { x: evt.x, y: evt.y };
   } else if (r) {
-    console.log("setting clickedHandle");
     bezierState.clickedHandle = r;
   } else {
     const { x, y } = evt;
@@ -180,8 +176,6 @@ canvas.addEventListener("mousedown", evt => {
 
 canvas.addEventListener("mouseover", evt => {
   //currentPoint.setAttribute("fill", "#ff0000");
-  console.log("mouseenter");
-  console.log(evt.target);
   const point = evt.target._Z_point;
   if (point) {
     evt.target.setAttribute("fill", "#ff0000");
@@ -190,7 +184,6 @@ canvas.addEventListener("mouseover", evt => {
 
 canvas.addEventListener("mouseleave", evt => {
   //currentPoint.setAttribute("fill", "#ff0000");
-  console.log("mouseleave");
   const point = evt.target._Z_point;
   if (point) {
     evt.target.setAttribute("fill", "#ccc");
