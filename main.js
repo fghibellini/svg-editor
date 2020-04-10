@@ -26,6 +26,8 @@ window.addEventListener("contextmenu", evt => {
 window.addEventListener("keydown", evt => {
   if (evt.key === 'c') {
     closeCurve();
+  } else if (evt.key === 'h') {
+    showAllHandles(bezierState);
   }
 }, true);
 
@@ -112,17 +114,19 @@ function closeCurve() {
 
   refreshBezierPath(bezierState);
 
-  bezierState = {
-    drawingBezier: false, // is currently drawing a bezier curve
-    isPressed: false, // ?
-    points: [],
-    isClosed: false,
-    $path: null,
-    clickedPoint: null,
-    clickedPointStartingCoords: null,
-    clickedPointWasMoved: false,
-    clickedHandle: null
-  };
+  bezierState.drawingBezier = false;
+  showAllHandles(bezierState);
+  //bezierState = {
+  //  drawingBezier: false, // is currently drawing a bezier curve
+  //  isPressed: false, // ?
+  //  points: [],
+  //  isClosed: false,
+  //  $path: null,
+  //  clickedPoint: null,
+  //  clickedPointStartingCoords: null,
+  //  clickedPointWasMoved: false,
+  //  clickedHandle: null
+  //};
 }
 
 function computeDistance(p1, p2) {
@@ -197,6 +201,22 @@ function refreshBezierPath({ isClosed, points, $path }) {
   }
 }
 
+function hideHandles(point) {
+  point.$lft_hdl.setAttribute("visibility", "hidden");
+  point.$rgt_hdl.setAttribute("visibility", "hidden");
+  point.$el.setAttribute("visibility", "hidden");
+  point.$hdl_line.setAttribute("visibility", "hidden");
+}
+
+function showAllHandles(parent) {
+  parent.points.forEach(point => {
+    point.$lft_hdl.setAttribute("visibility", "visible");
+    point.$rgt_hdl.setAttribute("visibility", "visible");
+    point.$el.setAttribute("visibility", "visible");
+    point.$hdl_line.setAttribute("visibility", "visible");
+  });
+}
+
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
@@ -222,12 +242,15 @@ canvas.addEventListener("mousedown", evt => {
     const $rgt_hdl = addPoint({ x: 0, y: 0 });
     const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }); // TODO initial position
     const $el = addPoint({ x, y });
+    $el.setAttribute("r", 4);
     const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null, parent: bezierState }
     $el._Z_point = current;
     $lft_hdl._Z_handle = { point: current, side: HS.Left };
     $rgt_hdl._Z_handle = { point: current, side: HS.Right };
     if (points.length > 0) {
-      points[points.length - 1].next = current;
+      const prev = points[points.length - 1];
+      prev.next = current;
+      hideHandles(prev);
     }
     points.push(current);
 
@@ -255,7 +278,7 @@ canvas.addEventListener("mouseleave", evt => {
   //currentPoint.setAttribute("fill", "#ff0000");
   const point = evt.target._Z_point;
   if (point) {
-    evt.target.setAttribute("fill", "#ccc");
+    evt.target.setAttribute("fill", "#333");
   }
 }, true);
 
@@ -263,8 +286,8 @@ function addPoint(p) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
   circle.setAttribute("cx", p.x);
   circle.setAttribute("cy", p.y);
-  circle.setAttribute("r", 4);
-  circle.setAttribute("fill", "cyan");
+  circle.setAttribute("r", 3);
+  circle.setAttribute("fill", "#333");
   zIndexHandles.insertAdjacentElement('afterend', circle);
   return circle;
 }
@@ -272,7 +295,7 @@ function addPoint(p) {
 function addLine(p) {
   const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
   line.setAttribute("d", `M ${p.x1} ${p.y1} l ${p.x2} ${p.y2}`);
-  line.setAttribute("stroke", "black");
+  line.setAttribute("stroke", "#333");
   line.setAttribute("fill", "none");
   zIndexLines.insertAdjacentElement('afterend', line);
   return line;
