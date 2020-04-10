@@ -52,6 +52,7 @@ function addLine(p) {
 canvas.addEventListener("mouseup", evt => {
   if (drawingBezier) {
     if (isPressed) {
+      console.log("mouseup is pressed");
       const { x, y } = evt;
       isPressed = false;
       handleLine.setAttribute("visibility", "hidden");
@@ -60,8 +61,8 @@ canvas.addEventListener("mouseup", evt => {
       lastSegment = null;
       currentPoint.setAttribute("fill", "#ccc");
       currentPoint = null;
-      drawingBezier = false;
     } else if (clickingPoint) {
+      console.log("mouseup clicking point");
       const t = clickingPoint;
       points.push(t);
       const prev = points[points.length - 2];
@@ -112,6 +113,7 @@ function updateHandles({ x, y}) {
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   if (t) {
+    console.log("setting clickingPoint");
     clickingPoint = t;
   } else {
     isPressed = true;
