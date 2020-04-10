@@ -48,7 +48,7 @@ canvas.addEventListener("mouseup", evt => {
       points.push(t);
       const prev = points[points.length - 2];
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x - (t.hx - t.x)} ${t.y - (t.hy - t.y)} ${t.x} ${t.y}`);
+      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
       zIndexLines.insertAdjacentElement('afterend', path);
@@ -70,8 +70,8 @@ canvas.addEventListener("mousemove", evt => {
   if (isPressed) {
     console.log("is pressed");
     const current = points[points.length - 1];
-    current.hx = x;
-    current.hy = y;
+    current.hx = x - current.x;
+    current.hy = y - current.y;
     onHandleChange(current);
   } else if (clickingPoint) {
     console.log("moving point!");
@@ -83,30 +83,24 @@ canvas.addEventListener("mousemove", evt => {
   }
 }, true);
 
-function computeHandleB({ x, y, hx, hy }) {
-  return { x: x - (hx - x), y: y - (hy - y) }
-}
-
 function onHandleChange(p) {
   const { x, y, hx, hy, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev, next } = p;
   // handle A
-  $rgt_hdl.setAttribute("cx", hx);
-  $rgt_hdl.setAttribute("cy", hy);
+  $rgt_hdl.setAttribute("cx", x + hx);
+  $rgt_hdl.setAttribute("cy", y + hy);
   // handleB
-  const pB = { x: x - (hx - x), y: y - (hy - y) };
-  $lft_hdl.setAttribute("cx", pB.x);
-  $lft_hdl.setAttribute("cy", pB.y);
+  $lft_hdl.setAttribute("cx", x - hx);
+  $lft_hdl.setAttribute("cy", y - hy);
   // handle-line
-  $hdl_line.setAttribute("x1", hx);
-  $hdl_line.setAttribute("y1", hy);
-  $hdl_line.setAttribute("x2", pB.x);
-  $hdl_line.setAttribute("y2", pB.y);
+  $hdl_line.setAttribute("x1", x + hx);
+  $hdl_line.setAttribute("y1", y + hy);
+  $hdl_line.setAttribute("x2", x - hx);
+  $hdl_line.setAttribute("y2", y - hy);
   if ($lft_seg) {
-    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${pB.x} ${pB.y} ${x} ${y}`);
+    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${x - hx} ${y - hy} ${x} ${y}`);
   }
   if (next) {
-    const npb = computeHandleB(next); // next point B
-    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${hx} ${hy} ${npb.x} ${npb.y} ${next.x} ${next.y}`);
+    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${hx} ${hy} ${next.x - next.hx} ${next.y - next.hy} ${next.x} ${next.y}`);
   }
   p.$el.setAttribute("cx", x);
   p.$el.setAttribute("cy", y);
@@ -128,7 +122,7 @@ canvas.addEventListener("mousedown", evt => {
     const $rgt_hdl = addPoint({ x: 0, y: 0 });
     const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
     const $el = addPoint({ x, y });
-    const current = { x, y, hx: x, hy: y, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
+    const current = { x, y, hx: 0, hy: 0, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
     $el._Z_point = current;
     if (points.length > 0) {
       points[points.length - 1].next = current;
