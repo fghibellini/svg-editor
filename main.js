@@ -2,6 +2,7 @@
 
 const canvas = document.getElementById("canvas");
 
+let drawingBezier = false;
 let isPressed = false;
 const points = [];
 const segments = [];
@@ -35,24 +36,34 @@ function addLine(p) {
 }
 
 canvas.addEventListener("mouseup", evt => {
-  if (isPressed) {
-    const { x, y } = evt;
-    isPressed = false;
-    handleLine.setAttribute("visibility", "hidden");
-    handlePointA.setAttribute("visibility", "hidden");
-    handlePointB.setAttribute("visibility", "hidden");
-    lastSegment = null;
-    currentPoint.setAttribute("fill", "#ccc");
-    currentPoint = null;
-  } else if (clickingPoint) {
-    const t = clickingPoint;
-    points.push(t);
-    const prev = points[points.length - 2];
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x} ${t.y} ${t.x} ${t.y}`);
-    path.setAttribute("stroke", "pink");
-    path.setAttribute("fill", "none");
-    canvas.appendChild(path);
+  if (drawingBezier) {
+    if (isPressed) {
+      const { x, y } = evt;
+      isPressed = false;
+      handleLine.setAttribute("visibility", "hidden");
+      handlePointA.setAttribute("visibility", "hidden");
+      handlePointB.setAttribute("visibility", "hidden");
+      lastSegment = null;
+      currentPoint.setAttribute("fill", "#ccc");
+      currentPoint = null;
+      drawingBezier = false;
+    } else if (clickingPoint) {
+      const t = clickingPoint;
+      points.push(t);
+      const prev = points[points.length - 2];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x} ${t.y} ${t.x} ${t.y}`);
+      path.setAttribute("stroke", "pink");
+      path.setAttribute("fill", "none");
+      canvas.appendChild(path);
+      lastSegment = null;
+      currentPoint = null;
+      drawingBezier = false;
+    }
+  } else {
+    //if (clickingPoint) {
+
+    //}
   }
 }, true);
 
@@ -90,6 +101,7 @@ canvas.addEventListener("mousedown", evt => {
     clickingPoint = t;
   } else {
     isPressed = true;
+    drawingBezier = true;
     handleLine.setAttribute("visibility", "visible");
     handlePointA.setAttribute("visibility", "visible");
     handlePointB.setAttribute("visibility", "visible");
