@@ -19,6 +19,8 @@ window.addEventListener("resize", evt => {
 
 onResize();
 
+const MIN_MOVEMENT = 3;
+
 // editor state
 const objects = [];
 let bezierState = {
@@ -28,11 +30,13 @@ let bezierState = {
   handlePointA: addPoint({ x: 0, y: 0 }),
   handlePointB: addPoint({ x: 0, y: 0 }),
   handleLine: addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }),
-  clickingPoint: null
+  clickingPoint: null,
+  clickingPointStartingCoords: null,
+  clickingPointWasMoved: false
 };
 
 canvas.addEventListener("mouseup", evt => {
-  const { drawingBezier, isPressed, points, clickingPoint } = bezierState;
+  const { drawingBezier, isPressed, points, clickingPoint, clickingPointWasMoved } = bezierState;
   if (drawingBezier) {
     if (isPressed) {
       console.log("mouseup is pressed");
@@ -42,6 +46,8 @@ canvas.addEventListener("mouseup", evt => {
       //current.$hdl_line.setAttribute("visibility", "hidden");
       //current.$rgt_hdl.setAttribute("visibility", "hidden");
       //current.$lft_hdl.setAttribute("visibility", "hidden");
+    } else if (clickingPoint && clickingPointWasMoved) {
+      bezierState.clickingPoint = null;
     } else if (clickingPoint && clickingPoint === points[0]) {
       console.log("mouseup clicking point");
       const t = clickingPoint;
@@ -55,17 +61,20 @@ canvas.addEventListener("mouseup", evt => {
       bezierState.drawingBezier = false;
       objects.push({ isClosed: true, points }); // TODO map points
       bezierState.points = [];
-    }
-  } else {
-    if (clickingPoint) {
-
+      bezierState.clickingPoint = null;
     }
   }
 }, true);
 
+function computeDistance(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 canvas.addEventListener("mousemove", evt => {
   const { x, y } = evt;
-  const { isPressed, points, clickingPoint } = bezierState;
+  const { isPressed, points, clickingPoint, clickingPointWasMoved, clickingPointStartingCoords } = bezierState;
   console.log("mousemove");
   if (isPressed) {
     console.log("is pressed");
@@ -74,10 +83,12 @@ canvas.addEventListener("mousemove", evt => {
     current.hy = y - current.y;
     onHandleChange(current);
   } else if (clickingPoint) {
-    console.log("moving point!");
-    clickingPoint.x = x;
-    clickingPoint.y = y;
-    onHandleChange(clickingPoint);
+    if (clickingPointWasMoved || computeDistance(evt, clickingPointStartingCoords) > MIN_MOVEMENT) {
+      bezierState.clickingPointWasMoved = true;
+      clickingPoint.x = x;
+      clickingPoint.y = y;
+      onHandleChange(clickingPoint);
+    }
   } else {
     console.log("nothing");
   }
@@ -100,7 +111,7 @@ function onHandleChange(p) {
     $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${x - hx} ${y - hy} ${x} ${y}`);
   }
   if (next) {
-    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${hx} ${hy} ${next.x - next.hx} ${next.y - next.hy} ${next.x} ${next.y}`);
+    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.x - next.hx} ${next.y - next.hy} ${next.x} ${next.y}`);
   }
   p.$el.setAttribute("cx", x);
   p.$el.setAttribute("cy", y);
@@ -111,6 +122,8 @@ canvas.addEventListener("mousedown", evt => {
   if (t) {
     console.log("setting clickingPoint");
     bezierState.clickingPoint = t;
+    bezierState.clickingPointWasMoved = false;
+    bezierState.clickingPointStartingCoords = { x: evt.x, y: evt.y };
   } else {
     const { x, y } = evt;
     const { drawingBezier, isPressed, points } = bezierState;
