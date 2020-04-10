@@ -13,11 +13,17 @@ window.addEventListener("resize", evt => {
 
 
 const canvas = document.getElementById("canvas");
+const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
+const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
+canvas.appendChild(zIndexLines);
+canvas.appendChild(zIndexHandles);
+
+const objects = [];
 
 let drawingBezier = false;
 let isPressed = false;
-const points = [];
-const segments = [];
+let points = [];
+let segments = [];
 let current = null;
 let handlePointA = addPoint({ x: 0, y: 0 });
 let handlePointB = addPoint({ x: 0, y: 0 });
@@ -34,7 +40,7 @@ function addPoint(p) {
   circle.setAttribute("cy", p.y);
   circle.setAttribute("r", 4);
   circle.setAttribute("fill", "cyan");
-  canvas.appendChild(circle);
+  zIndexHandles.insertAdjacentElement('afterend', circle);
   return circle;
 }
 
@@ -45,7 +51,7 @@ function addLine(p) {
   line.setAttribute("x2", p.x2);
   line.setAttribute("y2", p.y2);
   line.setAttribute("stroke", "black");
-  canvas.appendChild(line);
+  zIndexLines.insertAdjacentElement('afterend', line);
   return line;
 }
 
@@ -70,10 +76,12 @@ canvas.addEventListener("mouseup", evt => {
       path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x} ${t.y} ${t.x} ${t.y}`);
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
-      canvas.appendChild(path);
+      zIndexLines.insertAdjacentElement('afterend', path);
       lastSegment = null;
       currentPoint = null;
       drawingBezier = false;
+      objects.push({ isClosed: true, points });
+      points = [];
     }
   } else {
     //if (clickingPoint) {
@@ -133,7 +141,7 @@ canvas.addEventListener("mousedown", evt => {
       path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
-      canvas.appendChild(path);
+      zIndexLines.insertAdjacentElement('afterend', path);
       lastSegment = path;
     }
   }
