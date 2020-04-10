@@ -19,6 +19,10 @@ window.addEventListener("resize", evt => {
 
 onResize();
 
+window.addEventListener("contextmenu", evt => {
+  evt.preventDefault();
+});
+
 const MIN_MOVEMENT = 3;
 
 const HS = {
@@ -32,9 +36,6 @@ let bezierState = {
   drawingBezier: false, // is currently drawing a bezier curve
   isPressed: false, // ?
   points: [],
-  handlePointA: addPoint({ x: 0, y: 0 }),
-  handlePointB: addPoint({ x: 0, y: 0 }),
-  handleLine: addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }),
   clickedPoint: null,
   clickedPointStartingCoords: null,
   clickedPointWasMoved: false,
@@ -95,8 +96,13 @@ canvas.addEventListener("mousemove", evt => {
       point.hx = x - point.x;
       point.hy = y - point.y;
     } else {
-      point.hx = point.x - x;
-      point.hy = point.y - y;
+      if (point.h2x === null) {
+        point.hx = point.x - x;
+        point.hy = point.y - y;
+      } else {
+        point.h2x = x - point.x;
+        point.h2y = y - point.y;
+      }
     }
     onHandleChange(point);
   } else if (clickedPoint) {
@@ -111,23 +117,24 @@ canvas.addEventListener("mousemove", evt => {
 }, true);
 
 function onHandleChange(p) {
-  const { x, y, hx, hy, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev, next } = p;
+  const { x, y, hx, hy, h2x, h2y, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev, next } = p;
   // handle A
   $rgt_hdl.setAttribute("cx", x + hx);
   $rgt_hdl.setAttribute("cy", y + hy);
   // handleB
-  $lft_hdl.setAttribute("cx", x - hx);
-  $lft_hdl.setAttribute("cy", y - hy);
+  $lft_hdl.setAttribute("cx", h2x === null ? x - hx : x + h2x);
+  $lft_hdl.setAttribute("cy", h2x === null ? y - hy : y + h2y);
   // handle-line
-  $hdl_line.setAttribute("x1", x + hx);
-  $hdl_line.setAttribute("y1", y + hy);
-  $hdl_line.setAttribute("x2", x - hx);
-  $hdl_line.setAttribute("y2", y - hy);
+  if (h2x === null) {
+    $hdl_line.setAttribute("d", `M ${x - hx} ${y - hy} L ${x + hx} ${y + hy}`);
+  } else {
+    $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
+  }
   if ($lft_seg) {
-    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${x - hx} ${y - hy} ${x} ${y}`);
+    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${h2x === null ? x - hx : x + h2x} ${h2x === null ? y - hy : y + h2y} ${x} ${y}`);
   }
   if (next) {
-    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.x - next.hx} ${next.y - next.hy} ${next.x} ${next.y}`);
+    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.h2x === null ? next.x - next.hx : next.x + next.h2x} ${next.h2y === null ? next.y - next.hy : next.y + next.h2y} ${next.x} ${next.y}`);
   }
   p.$el.setAttribute("cx", x);
   p.$el.setAttribute("cy", y);
@@ -141,6 +148,11 @@ canvas.addEventListener("mousedown", evt => {
     bezierState.clickedPointWasMoved = false;
     bezierState.clickedPointStartingCoords = { x: evt.x, y: evt.y };
   } else if (r) {
+    const point = r.point;
+    if (evt.ctrlKey && point.h2x === null) {
+      point.h2x = - point.hx;
+      point.h2y = - point.hy;
+    }
     bezierState.clickedHandle = r;
   } else {
     const { x, y } = evt;
@@ -151,9 +163,9 @@ canvas.addEventListener("mousedown", evt => {
 
     const $lft_hdl = addPoint({ x: 0, y: 0 });
     const $rgt_hdl = addPoint({ x: 0, y: 0 });
-    const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
+    const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }); // TODO initial position
     const $el = addPoint({ x, y });
-    const current = { x, y, hx: 0, hy: 0, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
+    const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
     $el._Z_point = current;
     $lft_hdl._Z_handle = { point: current, side: HS.Left };
     $rgt_hdl._Z_handle = { point: current, side: HS.Right };
@@ -201,12 +213,10 @@ function addPoint(p) {
 }
 
 function addLine(p) {
-  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  line.setAttribute("x1", p.x1);
-  line.setAttribute("y1", p.y1);
-  line.setAttribute("x2", p.x2);
-  line.setAttribute("y2", p.y2);
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  line.setAttribute("d", `M ${p.x1} ${p.y1} l ${p.x2} ${p.y2}`);
   line.setAttribute("stroke", "black");
+  line.setAttribute("fill", "none");
   zIndexLines.insertAdjacentElement('afterend', line);
   return line;
 }
