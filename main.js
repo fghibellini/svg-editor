@@ -30,6 +30,8 @@ window.addEventListener("keydown", evt => {
     closeCurve();
   } else if (evt.key === 'h') {
     showAllHandles(bezierState);
+  } else if (evt.key === 'Esc' || evt.key === 'Escape') {
+    unselectBezier();
   }
 }, true);
 
@@ -73,6 +75,21 @@ canvas.addEventListener("mouseup", evt => {
     // TODO highlight handles ?
   }
 }, true);
+
+function unselectBezier() {
+  hideAllHandles(bezierState);
+  bezierState = {
+    drawingBezier: false, // is currently drawing a bezier curve
+    isPressed: false, // ?
+    points: [],
+    isClosed: false,
+    $path: null,
+    clickedPoint: null,
+    clickedPointStartingCoords: null,
+    clickedPointWasMoved: false,
+    clickedHandle: null
+  };
+}
 
 function computeBezierPath(closed, points) {
   const fp = points[0];
@@ -208,6 +225,15 @@ function hideHandles(point) {
   point.$rgt_hdl.setAttribute("visibility", "hidden");
   point.$el.setAttribute("visibility", "hidden");
   point.$hdl_line.setAttribute("visibility", "hidden");
+}
+
+function hideAllHandles(parent) {
+  parent.points.forEach(point => {
+    point.$lft_hdl.setAttribute("visibility", "hidden");
+    point.$rgt_hdl.setAttribute("visibility", "hidden");
+    point.$el.setAttribute("visibility", "hidden");
+    point.$hdl_line.setAttribute("visibility", "hidden");
+  });
 }
 
 function showAllHandles(parent) {
