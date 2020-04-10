@@ -9,7 +9,9 @@ let current = null;
 let handlePointA = addPoint({ x: 0, y: 0 });
 let handlePointB = addPoint({ x: 0, y: 0 });
 let handleLine = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
+let currentPoint = null;
 let lastSegment = null;
+let clickingPoint = null;
 
 function addPoint(p) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -40,6 +42,17 @@ canvas.addEventListener("mouseup", evt => {
     handlePointA.setAttribute("visibility", "hidden");
     handlePointB.setAttribute("visibility", "hidden");
     lastSegment = null;
+    currentPoint.setAttribute("fill", "#ccc");
+    currentPoint = null;
+  } else if (clickingPoint) {
+    const t = clickingPoint;
+    points.push(t);
+    const prev = points[points.length - 2];
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x} ${t.y} ${t.x} ${t.y}`);
+    path.setAttribute("stroke", "pink");
+    path.setAttribute("fill", "none");
+    canvas.appendChild(path);
   }
 }, true);
 
@@ -72,22 +85,46 @@ function updateHandles({ x, y}) {
 }
 
 canvas.addEventListener("mousedown", evt => {
-  isPressed = true;
-  handleLine.setAttribute("visibility", "visible");
-  handlePointA.setAttribute("visibility", "visible");
-  handlePointB.setAttribute("visibility", "visible");
-  const { x, y } = evt;
-  addPoint({ x, y });
-  current = { x, y, hx: x, hy: y };
-  points.push(current);
-  updateHandles({ x, y });
-  if (points.length > 1) {
-    const prev = points[points.length - 2];
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
-    path.setAttribute("stroke", "pink");
-    path.setAttribute("fill", "none");
-    canvas.appendChild(path);
-    lastSegment = path;
+  const t = evt.target._Z_point;
+  if (t) {
+    clickingPoint = t;
+  } else {
+    isPressed = true;
+    handleLine.setAttribute("visibility", "visible");
+    handlePointA.setAttribute("visibility", "visible");
+    handlePointB.setAttribute("visibility", "visible");
+    const { x, y } = evt;
+    currentPoint = addPoint({ x, y });
+    current = { x, y, hx: x, hy: y };
+    points.push(current);
+    currentPoint._Z_point = current;
+    updateHandles({ x, y });
+    if (points.length > 1) {
+      const prev = points[points.length - 2];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
+      path.setAttribute("stroke", "pink");
+      path.setAttribute("fill", "none");
+      canvas.appendChild(path);
+      lastSegment = path;
+    }
+  }
+}, true);
+
+canvas.addEventListener("mouseover", evt => {
+  //currentPoint.setAttribute("fill", "#ff0000");
+  console.log("mouseenter");
+  console.log(evt.target);
+  const point = evt.target._Z_point;
+  if (point) {
+    evt.target.setAttribute("fill", "#ff0000");
+  }
+}, true);
+
+canvas.addEventListener("mouseleave", evt => {
+  //currentPoint.setAttribute("fill", "#ff0000");
+  const point = evt.target._Z_point;
+  if (point) {
+    evt.target.setAttribute("fill", "#ccc");
   }
 }, true);
