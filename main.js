@@ -37,32 +37,32 @@ let bezierState = {
 
 canvas.addEventListener("mouseup", evt => {
   const { drawingBezier, isPressed, points, clickingPoint, clickingPointWasMoved } = bezierState;
-  if (drawingBezier) {
-    if (isPressed) {
-      console.log("mouseup is pressed");
-      const { x, y } = evt;
-      const current = points[points.length - 1];
-      bezierState.isPressed = false;
-      //current.$hdl_line.setAttribute("visibility", "hidden");
-      //current.$rgt_hdl.setAttribute("visibility", "hidden");
-      //current.$lft_hdl.setAttribute("visibility", "hidden");
-    } else if (clickingPoint && clickingPointWasMoved) {
-      bezierState.clickingPoint = null;
-    } else if (clickingPoint && clickingPoint === points[0]) {
-      console.log("mouseup clicking point");
-      const t = clickingPoint;
-      points.push(t);
-      const prev = points[points.length - 2];
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
-      path.setAttribute("stroke", "pink");
-      path.setAttribute("fill", "none");
-      zIndexLines.insertAdjacentElement('afterend', path);
-      bezierState.drawingBezier = false;
-      objects.push({ isClosed: true, points }); // TODO map points
-      bezierState.points = [];
-      bezierState.clickingPoint = null;
-    }
+  if (isPressed) {
+    console.log("mouseup is pressed");
+    const { x, y } = evt;
+    const current = points[points.length - 1];
+    bezierState.isPressed = false;
+    //current.$hdl_line.setAttribute("visibility", "hidden");
+    //current.$rgt_hdl.setAttribute("visibility", "hidden");
+    //current.$lft_hdl.setAttribute("visibility", "hidden");
+  } else if (clickingPoint && clickingPointWasMoved) {
+    bezierState.clickingPoint = null;
+  } else if (clickingPoint && clickingPoint === points[0]) {
+    console.log("mouseup clicking point");
+    const t = clickingPoint;
+    points.push(t);
+    const prev = points[points.length - 2];
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
+    path.setAttribute("stroke", "pink");
+    path.setAttribute("fill", "none");
+    zIndexLines.insertAdjacentElement('afterend', path);
+    bezierState.drawingBezier = false;
+    objects.push({ isClosed: true, points }); // TODO map points
+    bezierState.points = [];
+    bezierState.clickingPoint = null;
+  } else {
+    // TODO highlight handles ?
   }
 }, true);
 
