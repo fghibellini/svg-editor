@@ -42,6 +42,8 @@ let bezierState = {
   drawingBezier: false, // is currently drawing a bezier curve
   isPressed: false, // ?
   points: [],
+  isClosed: false,
+  $path: null,
   clickedPoint: null,
   clickedPointStartingCoords: null,
   clickedPointWasMoved: false,
@@ -68,49 +70,59 @@ canvas.addEventListener("mouseup", evt => {
   }
 }, true);
 
+function computeBezierPath(closed, points) {
+  const fp = points[0];
+  const lp = points[points.length - 1]; // last point
+  return [`M ${fp.x} ${fp.y}`].concat(points.slice(0, points.length - 1).map((p, i) => {
+    const n = points[i+1];
+    return `C ${p.x + p.hx} ${p.y + p.hy} ${n.h2x === null ? n.x - n.hx : n.x + n.h2x} ${n.h2x === null ? n.y - n.hy : n.y + n.h2y} ${n.x} ${n.y}`;
+  })).concat(closed ? [`C ${lp.x + lp.hx} ${lp.y + lp.hy} ${fp.h2x === null ? fp.x - fp.hx : fp.x + fp.h2x} ${fp.h2x === null ? fp.y - fp.hy : fp.y + fp.h2y} ${fp.x} ${fp.y}`] : []).join(" ");
+}
+
+
 function createClosedBezierCurve(points) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("stroke", "none");
   path.setAttribute("fill", "rgba(0,255,0,0.3)");
   zIndexLines.insertAdjacentElement('afterend', path);
 
-  const fp = points[0];
-  const lp = points[points.length - 1]; // last point
-  const d = [`M ${fp.x} ${fp.y}`].concat(points.slice(0, points.length - 1).map((p, i) => {
-    const n = points[i+1];
-    return `C ${p.x + p.hx} ${p.y + p.hy} ${n.h2x === null ? n.x - n.hx : n.x + n.h2x} ${n.h2x === null ? n.y - n.hy : n.y + n.h2y} ${n.x} ${n.y}`;
-  })).concat([`C ${lp.x + lp.hx} ${lp.y + lp.hy} ${fp.h2x === null ? fp.x - fp.hx : fp.x + fp.h2x} ${fp.h2x === null ? fp.y - fp.hy : fp.y + fp.h2y} ${fp.x} ${fp.y}`]).join(" ");
-
+  const d = computeBezierPath(true, points);
   path.setAttribute("d", d);
   return path;
 }
 
-function bezierToPoints(points) {
-  return points.map(({ x, y, hx, hy, h2x, h2y }) => ({ x, y, hx, hy, h2x, h2y }));
+function bezierToPoints(parent, points) {
+  return points.map(({ x, y, hx, hy, h2x, h2y }) => ({ x, y, hx, hy, h2x, h2y, parent }));
 }
 
 function closeCurve() {
-  const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
+  const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle, $path } = bezierState;
   const t = points[0];
   const prev = points[points.length - 1];
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
-  path.setAttribute("stroke", "pink");
-  path.setAttribute("fill", "none");
-  zIndexLines.insertAdjacentElement('afterend', path);
-  t.$lft_seg = path;
+  // const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  // path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
+  // path.setAttribute("stroke", "pink");
+  // path.setAttribute("fill", "none");
+  // zIndexLines.insertAdjacentElement('afterend', path);
   t.prev = prev;
   prev.next = t;
 
-  const ps = bezierToPoints(points);
-  console.log("ps:");
-  console.log(ps);
-  const singlePath = createClosedBezierCurve(ps);
+  // objects.push(obj); // TODO map points
+  bezierState.isClosed = true;
 
-  bezierState.drawingBezier = false;
-  objects.push({ isClosed: true, points: ps, path: singlePath }); // TODO map points
-  bezierState.points = [];
-  bezierState.clickedPoint = null;
+  refreshBezierPath(bezierState);
+
+  bezierState = {
+    drawingBezier: false, // is currently drawing a bezier curve
+    isPressed: false, // ?
+    points: [],
+    isClosed: false,
+    $path: null,
+    clickedPoint: null,
+    clickedPointStartingCoords: null,
+    clickedPointWasMoved: false,
+    clickedHandle: null
+  };
 }
 
 function computeDistance(p1, p2) {
@@ -154,7 +166,7 @@ canvas.addEventListener("mousemove", evt => {
 }, true);
 
 function onHandleChange(p) {
-  const { x, y, hx, hy, h2x, h2y, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev, next } = p;
+  const { x, y, hx, hy, h2x, h2y, $hdl_line, $rgt_hdl, $lft_hdl, prev, next } = p;
   // handle A
   $rgt_hdl.setAttribute("cx", x + hx);
   $rgt_hdl.setAttribute("cy", y + hy);
@@ -167,14 +179,22 @@ function onHandleChange(p) {
   } else {
     $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
   }
-  if ($lft_seg) {
-    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${h2x === null ? x - hx : x + h2x} ${h2x === null ? y - hy : y + h2y} ${x} ${y}`);
-  }
-  if (next) {
-    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.h2x === null ? next.x - next.hx : next.x + next.h2x} ${next.h2y === null ? next.y - next.hy : next.y + next.h2y} ${next.x} ${next.y}`);
-  }
+  //if ($lft_seg) {
+  //  $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${h2x === null ? x - hx : x + h2x} ${h2x === null ? y - hy : y + h2y} ${x} ${y}`);
+  //}
+  //if (next) {
+  //  next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.h2x === null ? next.x - next.hx : next.x + next.h2x} ${next.h2y === null ? next.y - next.hy : next.y + next.h2y} ${next.x} ${next.y}`);
+  //}
+  refreshBezierPath(p.parent);
   p.$el.setAttribute("cx", x);
   p.$el.setAttribute("cy", y);
+}
+
+function refreshBezierPath({ isClosed, points, $path }) {
+  if ($path) {
+    const d = computeBezierPath(isClosed, points);
+    $path.setAttribute("d", d);
+  }
 }
 
 canvas.addEventListener("mousedown", evt => {
@@ -202,7 +222,7 @@ canvas.addEventListener("mousedown", evt => {
     const $rgt_hdl = addPoint({ x: 0, y: 0 });
     const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }); // TODO initial position
     const $el = addPoint({ x, y });
-    const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
+    const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null, parent: bezierState }
     $el._Z_point = current;
     $lft_hdl._Z_handle = { point: current, side: HS.Left };
     $rgt_hdl._Z_handle = { point: current, side: HS.Right };
@@ -211,14 +231,14 @@ canvas.addEventListener("mousedown", evt => {
     }
     points.push(current);
 
-    if (points.length > 1) {
-      const prev = points[points.length - 2];
+    if (points.length === 2) {
+      const prev = points[0];
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
       zIndexLines.insertAdjacentElement('afterend', path);
-      current.$lft_seg = path;
+      bezierState.$path = path;
     }
   }
 }, true);
