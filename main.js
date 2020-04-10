@@ -1,8 +1,10 @@
 
 const canvas = document.getElementById("canvas");
 const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
+const zIndexHandleLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
 canvas.appendChild(zIndexLines);
+canvas.appendChild(zIndexHandleLines);
 canvas.appendChild(zIndexHandles);
 
 function onResize() {
@@ -82,20 +84,20 @@ function computeBezierPath(closed, points) {
 }
 
 
-function createClosedBezierCurve(points) {
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("stroke", "none");
-  path.setAttribute("fill", "rgba(0,255,0,0.3)");
-  zIndexLines.insertAdjacentElement('afterend', path);
+// function createClosedBezierCurve(points) {
+//   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+//   path.setAttribute("stroke", "none");
+//   path.setAttribute("fill", "rgba(0,255,0,0.3)");
+//   zIndexLines.insertAdjacentElement('afterend', path);
+// 
+//   const d = computeBezierPath(true, points);
+//   path.setAttribute("d", d);
+//   return path;
+// }
 
-  const d = computeBezierPath(true, points);
-  path.setAttribute("d", d);
-  return path;
-}
-
-function bezierToPoints(parent, points) {
-  return points.map(({ x, y, hx, hy, h2x, h2y }) => ({ x, y, hx, hy, h2x, h2y, parent }));
-}
+// function bezierToPoints(parent, points) {
+//   return points.map(({ x, y, hx, hy, h2x, h2y }) => ({ x, y, hx, hy, h2x, h2y, parent }));
+// }
 
 function closeCurve() {
   const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle, $path } = bezierState;
@@ -105,7 +107,7 @@ function closeCurve() {
   // path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
   // path.setAttribute("stroke", "pink");
   // path.setAttribute("fill", "none");
-  // zIndexLines.insertAdjacentElement('afterend', path);
+  // zIndexHandleLines.insertAdjacentElement('afterend', path);
   t.prev = prev;
   prev.next = t;
 
@@ -297,7 +299,7 @@ function addLine(p) {
   line.setAttribute("d", `M ${p.x1} ${p.y1} l ${p.x2} ${p.y2}`);
   line.setAttribute("stroke", "#333");
   line.setAttribute("fill", "none");
-  zIndexLines.insertAdjacentElement('afterend', line);
+  zIndexHandleLines.insertAdjacentElement('afterend', line);
   return line;
 }
 
