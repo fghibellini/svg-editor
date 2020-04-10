@@ -39,9 +39,9 @@ canvas.addEventListener("mouseup", evt => {
       const { x, y } = evt;
       const current = points[points.length - 1];
       bezierState.isPressed = false;
-      current.$hdl_line.setAttribute("visibility", "hidden");
-      current.$rgt_hdl.setAttribute("visibility", "hidden");
-      current.$lft_hdl.setAttribute("visibility", "hidden");
+      //current.$hdl_line.setAttribute("visibility", "hidden");
+      //current.$rgt_hdl.setAttribute("visibility", "hidden");
+      //current.$lft_hdl.setAttribute("visibility", "hidden");
     } else if (clickingPoint && clickingPoint === points[0]) {
       console.log("mouseup clicking point");
       const t = clickingPoint;
@@ -83,8 +83,12 @@ canvas.addEventListener("mousemove", evt => {
   }
 }, true);
 
+function computeHandleB({ x, y, hx, hy }) {
+  return { x: x - (hx - x), y: y - (hy - y) }
+}
+
 function onHandleChange(p) {
-  const { x, y, hx, hy, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev } = p;
+  const { x, y, hx, hy, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev, next } = p;
   // handle A
   $rgt_hdl.setAttribute("cx", hx);
   $rgt_hdl.setAttribute("cy", hy);
@@ -100,6 +104,12 @@ function onHandleChange(p) {
   if ($lft_seg) {
     $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${pB.x} ${pB.y} ${x} ${y}`);
   }
+  if (next) {
+    const npb = computeHandleB(next); // next point B
+    next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${hx} ${hy} ${npb.x} ${npb.y} ${next.x} ${next.y}`);
+  }
+  p.$el.setAttribute("cx", x);
+  p.$el.setAttribute("cy", y);
 }
 
 canvas.addEventListener("mousedown", evt => {
@@ -118,8 +128,11 @@ canvas.addEventListener("mousedown", evt => {
     const $rgt_hdl = addPoint({ x: 0, y: 0 });
     const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
     const $el = addPoint({ x, y });
-    const current = { x, y, hx: x, hy: y, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null }
+    const current = { x, y, hx: x, hy: y, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null }
     $el._Z_point = current;
+    if (points.length > 0) {
+      points[points.length - 1].next = current;
+    }
     points.push(current);
 
     if (points.length > 1) {
