@@ -1,4 +1,16 @@
 
+function onResize() {
+  const height = window.innerHeight;
+  const width = window.innerWidth;
+  canvas.setAttribute("width", width);
+  canvas.setAttribute("height", height);
+  canvas.setAttribute("viewBox", `0 0 ${width} ${height}`);
+}
+
+window.addEventListener("resize", evt => {
+  onResize();
+}, true);
+
 
 const canvas = document.getElementById("canvas");
 
@@ -13,6 +25,8 @@ let handleLine = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
 let currentPoint = null;
 let lastSegment = null;
 let clickingPoint = null;
+
+onResize();
 
 function addPoint(p) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
