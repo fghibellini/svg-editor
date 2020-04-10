@@ -1,4 +1,10 @@
 
+const canvas = document.getElementById("canvas");
+const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
+const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
+canvas.appendChild(zIndexLines);
+canvas.appendChild(zIndexHandles);
+
 function onResize() {
   const height = window.innerHeight;
   const width = window.innerWidth;
@@ -11,28 +17,131 @@ window.addEventListener("resize", evt => {
   onResize();
 }, true);
 
-
-const canvas = document.getElementById("canvas");
-const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
-const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
-canvas.appendChild(zIndexLines);
-canvas.appendChild(zIndexHandles);
-
-const objects = [];
-
-let drawingBezier = false;
-let isPressed = false;
-let points = [];
-let segments = [];
-let current = null;
-let handlePointA = addPoint({ x: 0, y: 0 });
-let handlePointB = addPoint({ x: 0, y: 0 });
-let handleLine = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
-let currentPoint = null;
-let lastSegment = null;
-let clickingPoint = null;
-
 onResize();
+
+// editor state
+const objects = [];
+let bezierState = {
+  drawingBezier: false, // is currently drawing a bezier curve
+  isPressed: false, // ?
+  points: [],
+  handlePointA: addPoint({ x: 0, y: 0 }),
+  handlePointB: addPoint({ x: 0, y: 0 }),
+  handleLine: addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }),
+  clickingPoint: null
+};
+
+canvas.addEventListener("mouseup", evt => {
+  const { drawingBezier, isPressed, points } = bezierState;
+  if (drawingBezier) {
+    if (isPressed) {
+      console.log("mouseup is pressed");
+      const { x, y } = evt;
+      const current = points[points.length - 1];
+      bezierState.isPressed = false;
+      current.$hdl_line.setAttribute("visibility", "hidden");
+      current.$rgt_hdl.setAttribute("visibility", "hidden");
+      current.$lft_hdl.setAttribute("visibility", "hidden");
+    } else if (clickingPoint && clickingPoint === points[0]) {
+      console.log("mouseup clicking point");
+      const t = clickingPoint;
+      points.push(t);
+      const prev = points[points.length - 2];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x - (t.hx - t.x)} ${t.y - (t.hy - t.y)} ${t.x} ${t.y}`);
+      path.setAttribute("stroke", "pink");
+      path.setAttribute("fill", "none");
+      zIndexLines.insertAdjacentElement('afterend', path);
+      bezierState.drawingBezier = false;
+      objects.push({ isClosed: true, points }); // TODO map points
+      bezierState.points = [];
+    }
+  } else {
+    if (clickingPoint) {
+
+    }
+  }
+}, true);
+
+canvas.addEventListener("mousemove", evt => {
+  const { isPressed, points } = bezierState;
+  if (isPressed) {
+    const { x, y } = evt;
+    const current = points[points.length - 1];
+    current.hx = x;
+    current.hy = y;
+    onHandleChange(current);
+  }
+}, true);
+
+function onHandleChange(p) {
+  const { x, y, hx, hy, $hdl_line, $rgt_hdl, $lft_hdl, $lft_seg, prev } = p;
+  // handle A
+  $rgt_hdl.setAttribute("cx", hx);
+  $rgt_hdl.setAttribute("cy", hy);
+  // handleB
+  const pB = { x: x - (hx - x), y: y - (hy - y) };
+  $lft_hdl.setAttribute("cx", pB.x);
+  $lft_hdl.setAttribute("cy", pB.y);
+  // handle-line
+  $hdl_line.setAttribute("x1", hx);
+  $hdl_line.setAttribute("y1", hy);
+  $hdl_line.setAttribute("x2", pB.x);
+  $hdl_line.setAttribute("y2", pB.y);
+  if ($lft_seg) {
+    $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${pB.x} ${pB.y} ${x} ${y}`);
+  }
+}
+
+canvas.addEventListener("mousedown", evt => {
+  const t = evt.target._Z_point;
+  if (t) {
+    console.log("setting clickingPoint");
+    clickingPoint = t;
+  } else {
+    const { x, y } = evt;
+    const { drawingBezier, isPressed, points } = bezierState;
+
+    bezierState.drawingBezier = true;
+    bezierState.isPressed = true;
+
+    const $lft_hdl = addPoint({ x: 0, y: 0 });
+    const $rgt_hdl = addPoint({ x: 0, y: 0 });
+    const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 });
+    const $el = addPoint({ x, y });
+    const current = { x, y, hx: x, hy: y, $el, $lft_seg: null, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null }
+    $el._Z_point = current;
+    points.push(current);
+
+    if (points.length > 1) {
+      const prev = points[points.length - 2];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
+      path.setAttribute("stroke", "pink");
+      path.setAttribute("fill", "none");
+      zIndexLines.insertAdjacentElement('afterend', path);
+      current.$lft_seg = path;
+    }
+  }
+}, true);
+
+canvas.addEventListener("mouseover", evt => {
+  //currentPoint.setAttribute("fill", "#ff0000");
+  console.log("mouseenter");
+  console.log(evt.target);
+  const point = evt.target._Z_point;
+  if (point) {
+    evt.target.setAttribute("fill", "#ff0000");
+  }
+}, true);
+
+canvas.addEventListener("mouseleave", evt => {
+  //currentPoint.setAttribute("fill", "#ff0000");
+  const point = evt.target._Z_point;
+  if (point) {
+    evt.target.setAttribute("fill", "#ccc");
+  }
+}, true);
 
 function addPoint(p) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -55,112 +164,3 @@ function addLine(p) {
   return line;
 }
 
-canvas.addEventListener("mouseup", evt => {
-  if (drawingBezier) {
-    if (isPressed) {
-      console.log("mouseup is pressed");
-      const { x, y } = evt;
-      isPressed = false;
-      handleLine.setAttribute("visibility", "hidden");
-      handlePointA.setAttribute("visibility", "hidden");
-      handlePointB.setAttribute("visibility", "hidden");
-      lastSegment = null;
-      currentPoint.setAttribute("fill", "#ccc");
-      currentPoint = null;
-    } else if (clickingPoint && clickingPoint === points[0]) {
-      console.log("mouseup clicking point");
-      const t = clickingPoint;
-      points.push(t);
-      const prev = points[points.length - 2];
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${t.x - (t.hx - t.x)} ${t.y - (t.hy - t.y)} ${t.x} ${t.y}`);
-      path.setAttribute("stroke", "pink");
-      path.setAttribute("fill", "none");
-      zIndexLines.insertAdjacentElement('afterend', path);
-      lastSegment = null;
-      currentPoint = null;
-      drawingBezier = false;
-      objects.push({ isClosed: true, points });
-      points = [];
-    }
-  } else {
-    //if (clickingPoint) {
-
-    //}
-  }
-}, true);
-
-canvas.addEventListener("mousemove", evt => {
-  if (isPressed) {
-    const { x, y } = evt;
-    current.hx = x;
-    current.hy = y;
-    updateHandles({ x, y });
-  }
-}, true);
-
-function updateHandles({ x, y}) {
-  // handle A
-  handlePointA.setAttribute("cx", x);
-  handlePointA.setAttribute("cy", y);
-  // handleB
-  const pB = { x: current.x - (x - current.x), y: current.y - (y - current.y) };
-  handlePointB.setAttribute("cx", pB.x);
-  handlePointB.setAttribute("cy", pB.y);
-  // handle-line
-  handleLine.setAttribute("x1", x);
-  handleLine.setAttribute("y1", y);
-  handleLine.setAttribute("x2", pB.x);
-  handleLine.setAttribute("y2", pB.y);
-  if (lastSegment) {
-    const prev = points[points.length - 2];
-    lastSegment.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.hx} ${prev.hy} ${pB.x} ${pB.y} ${current.x} ${current.y}`);
-  }
-}
-
-canvas.addEventListener("mousedown", evt => {
-  const t = evt.target._Z_point;
-  if (t) {
-    console.log("setting clickingPoint");
-    clickingPoint = t;
-  } else {
-    isPressed = true;
-    drawingBezier = true;
-    handleLine.setAttribute("visibility", "visible");
-    handlePointA.setAttribute("visibility", "visible");
-    handlePointB.setAttribute("visibility", "visible");
-    const { x, y } = evt;
-    currentPoint = addPoint({ x, y });
-    current = { x, y, hx: x, hy: y };
-    points.push(current);
-    currentPoint._Z_point = current;
-    updateHandles({ x, y });
-    if (points.length > 1) {
-      const prev = points[points.length - 2];
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
-      path.setAttribute("stroke", "pink");
-      path.setAttribute("fill", "none");
-      zIndexLines.insertAdjacentElement('afterend', path);
-      lastSegment = path;
-    }
-  }
-}, true);
-
-canvas.addEventListener("mouseover", evt => {
-  //currentPoint.setAttribute("fill", "#ff0000");
-  console.log("mouseenter");
-  console.log(evt.target);
-  const point = evt.target._Z_point;
-  if (point) {
-    evt.target.setAttribute("fill", "#ff0000");
-  }
-}, true);
-
-canvas.addEventListener("mouseleave", evt => {
-  //currentPoint.setAttribute("fill", "#ff0000");
-  const point = evt.target._Z_point;
-  if (point) {
-    evt.target.setAttribute("fill", "#ccc");
-  }
-}, true);
