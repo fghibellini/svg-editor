@@ -44,6 +44,7 @@ const HS = {
 
 // editor state
 const objects = [];
+let clickedObject = null;
 let bezierState = {
   drawingBezier: false, // is currently drawing a bezier curve
   isPressed: false, // ?
@@ -65,6 +66,10 @@ canvas.addEventListener("mouseup", evt => {
     //current.$hdl_line.setAttribute("visibility", "hidden");
     //current.$rgt_hdl.setAttribute("visibility", "hidden");
     //current.$lft_hdl.setAttribute("visibility", "hidden");
+  } else if (clickedObject) {
+    bezierState = clickedObject;
+    showAllHandles(bezierState);
+    clickedObject = null;
   } else if (clickedHandle) {
     bezierState.clickedHandle = null;
   } else if (clickedPoint && clickedPointWasMoved) {
@@ -248,6 +253,7 @@ function showAllHandles(parent) {
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
+  const s = evt.target._Z_path;
   if (t) {
     bezierState.clickedPoint = t;
     bezierState.clickedPointWasMoved = false;
@@ -259,7 +265,9 @@ canvas.addEventListener("mousedown", evt => {
       point.h2y = - point.hy;
     }
     bezierState.clickedHandle = r;
-  } else {
+  } else if (s) {
+    clickedObject = s;
+  } else if (bezierState.drawingBezier) {
     const { x, y } = evt;
     const { drawingBezier, isPressed, points } = bezierState;
 
@@ -289,6 +297,7 @@ canvas.addEventListener("mousedown", evt => {
       path.setAttribute("stroke", "pink");
       path.setAttribute("fill", "none");
       zIndexLines.insertAdjacentElement('afterend', path);
+      path._Z_path = bezierState;
       bezierState.$path = path;
     }
   }
