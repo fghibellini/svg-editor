@@ -1,5 +1,22 @@
 
+/*
+ * CONFIG VARIABLES
+ */
+const MIN_MOVEMENT = 3;
+const HIT_PROXIMITY = 5;
+
+// Handle Side
+const HS = {
+  Left: Symbol("<left>"),
+  Right: Symbol("<right>")
+};
+
 const canvas = document.getElementById("canvas");
+
+/*
+ * These elements are used to be able to add new nodes at specific positions of
+ * the SVG tree.
+ */
 const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const zIndexHandleLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -37,14 +54,6 @@ window.addEventListener("keydown", evt => {
     unselectBezier();
   }
 }, true);
-
-const MIN_MOVEMENT = 3;
-const HIT_PROXIMITY = 5;
-
-const HS = {
-  Left: "<left>",
-  Right: "<right>"
-};
 
 // editor state
 const objects = [];
@@ -104,14 +113,46 @@ function unselectBezier() {
   };
 }
 
-function minimum(xs) {
-  return xs.reduce((a, b) => Math.min(a, b));
+/*
+ * Every point on a bezier curve has 2 handles.
+ * The "right" handle, i.e. the one pointing towards the `.next` node
+ * is always described by the relative coordinates [hx, hy].
+ * The "left" handle can have one of 3 possible representations.
+ *
+ * 1. symmetric handle - h2x = null, h2y = null
+ *    -------------------------------------------------
+ *    In this case the handle is the mirror immage of the "right" handle.
+ *    i.e. [-hx, -hy]
+ *
+ * 2. parallel handle - h2x != null, h2y = null
+ *    -----------------------------------------
+ *    The handle has the opposite direction of the "right" handle but `h2x`
+ *    encodes the absolute length of it. i.e. [-hx*h2x,-hy*h2x]
+ *
+ * 3. separate handles - h2x != null, h2y != null
+ *    -------------------------------------------
+ *    The two handles bear no relationship.
+ *    The [h2x, h2y] are the relative coordinates of the left handle.
+ */
+function handlePoints(p) {
+  const { x, y, hx, hy, h2x, h2y } = p;
+  if (h2y === null) {
+    if (h2x === null) {
+      return { right: { x: x + hx, y: y + hy }, left: { x: x - hx, y: y - hy } };
+    } else {
+      return { right: { x: x + hx, y: y + hy }, left: { x: x - hx * h2x, y: y - hy * h2x } };
+    }
+  } else {
+    return { right: { x: x + hx, y: y + hy }, left: { x: x + h2x, y: y + h2y } };
+  }
 }
 
 function projectOnBezier(points, t) {
   const ps = points.map(p => {
     const n = p.next;
-    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
+    const ph = handlePoints(p);
+    const nh = handlePoints(n);
+    const curve = new Bezier(p, ph.right, nh.left, n);
     const projection = curve.project(t);
     return { segment: p, projection, distance: computeDistance(t, projection) };
   });
@@ -123,37 +164,32 @@ function projectOnBezier(points, t) {
 function distanceFromBezier(points, t) {
   const distances = points.map(p => {
     const n = p.next;
-    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
+    const ph = handlePoints(p);
+    const nh = handlePoints(n);
+    const curve = new Bezier(p, ph.right, nh.left, n);
     const projection = curve.project(t);
     return computeDistance(t, projection);
   });
   return minimum(distances);
 }
 
-function computeBezierPath(closed, points) {
-  const fp = points[0];
+function svgBezierPath(closed, points) {
+  const fp = points[0]; // first point
   const lp = points[points.length - 1]; // last point
-  return [`M ${fp.x} ${fp.y}`].concat(points.slice(0, points.length - 1).map((p, i) => {
-    const n = points[i+1];
-    return `C ${p.x + p.hx} ${p.y + p.hy} ${n.h2x === null ? n.x - n.hx : n.x + n.h2x} ${n.h2x === null ? n.y - n.hy : n.y + n.h2y} ${n.x} ${n.y}`;
-  })).concat(closed ? [`C ${lp.x + lp.hx} ${lp.y + lp.hy} ${fp.h2x === null ? fp.x - fp.hx : fp.x + fp.h2x} ${fp.h2x === null ? fp.y - fp.hy : fp.y + fp.h2y} ${fp.x} ${fp.y}`] : []).join(" ");
+  const fph = handlePoints(fp); // first point handles
+  const lph = handlePoints(lp); // last point handles
+  return (
+    [`M ${fp.x} ${fp.y}`]
+    .concat(points.slice(0, points.length - 1).map((p, i) => {
+      const n = points[i+1]; // next
+      const ph = handlePoints(p); // ... handles
+      const nh = handlePoints(n); // ... handles
+      return `C ${ph.right.x} ${ph.right.y} ${nh.left.x} ${nh.left.y} ${n.x} ${n.y}`;
+    }))
+    .concat(closed ? [`C ${lph.right.x} ${lph.right.y} ${fph.left.x} ${fph.left.y} ${fp.x} ${fp.y}`] : [])
+    .join(" ")
+  );
 }
-
-
-// function createClosedBezierCurve(points) {
-//   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-//   path.setAttribute("stroke", "none");
-//   path.setAttribute("fill", "rgba(0,255,0,0.3)");
-//   zIndexLines.insertAdjacentElement('afterend', path);
-// 
-//   const d = computeBezierPath(true, points);
-//   path.setAttribute("d", d);
-//   return path;
-// }
-
-// function bezierToPoints(parent, points) {
-//   return points.map(({ x, y, hx, hy, h2x, h2y }) => ({ x, y, hx, hy, h2x, h2y, parent }));
-// }
 
 function closeCurve() {
   const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle, $path } = bezierState;
@@ -260,7 +296,7 @@ function onHandleChange(p) {
 
 function refreshBezierPath({ isClosed, points, $path }) {
   if ($path) {
-    const d = computeBezierPath(isClosed, points);
+    const d = svgBezierPath(isClosed, points);
     $path.setAttribute("d", d);
   }
 }
