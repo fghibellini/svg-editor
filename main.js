@@ -36,6 +36,7 @@ window.addEventListener("keydown", evt => {
 }, true);
 
 const MIN_MOVEMENT = 3;
+const HIT_PROXIMITY = 5;
 
 const HS = {
   Left: "<left>",
@@ -46,7 +47,7 @@ const HS = {
 const objects = [];
 let clickedObject = null;
 let bezierState = {
-  drawingBezier: false, // is currently drawing a bezier curve
+  drawingBezier: true, // is currently drawing a bezier curve
   isPressed: false, // ?
   points: [],
   isClosed: false,
@@ -96,6 +97,20 @@ function unselectBezier() {
   };
 }
 
+function minimum(xs) {
+  return xs.reduce((a, b) => Math.min(a, b));
+}
+
+function distanceFromBezier(points, t) {
+  const distances = points.map(p => {
+    const n = p.next;
+    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.h2x, n.h2x === null ? n.y - n.hy : n.h2y, n.x, n.y);
+    const projection = curve.project(t);
+    return computeDistance(t, projection);
+  });
+  return minimum(distances);
+}
+
 function computeBezierPath(closed, points) {
   const fp = points[0];
   const lp = points[points.length - 1]; // last point
@@ -133,7 +148,7 @@ function closeCurve() {
   t.prev = prev;
   prev.next = t;
 
-  // objects.push(obj); // TODO map points
+  objects.push(bezierState); // TODO map points
   bezierState.isClosed = true;
 
   refreshBezierPath(bezierState);
@@ -253,7 +268,17 @@ function showAllHandles(parent) {
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
-  const s = evt.target._Z_path;
+  // const s = evt.target._Z_path;
+
+  const _clickedObject = objects.length < 1 ? null :
+    (function() {
+      const distances = objects.map(o => ({ obj: o, d: distanceFromBezier(o.points, { x: evt.x, y: evt.y }) }));
+      const closest = distances.reduce((a, b) => {
+        return a.d < b.d ? a : b;
+      });
+      return closest.d < HIT_PROXIMITY ? closest.obj : null;
+    })();
+
   if (t) {
     bezierState.clickedPoint = t;
     bezierState.clickedPointWasMoved = false;
@@ -265,13 +290,12 @@ canvas.addEventListener("mousedown", evt => {
       point.h2y = - point.hy;
     }
     bezierState.clickedHandle = r;
-  } else if (s) {
-    clickedObject = s;
+  } else if (_clickedObject) {
+    clickedObject = _clickedObject;
   } else if (bezierState.drawingBezier) {
     const { x, y } = evt;
     const { drawingBezier, isPressed, points } = bezierState;
 
-    bezierState.drawingBezier = true;
     bezierState.isPressed = true;
 
     const $lft_hdl = addPoint({ x: 0, y: 0 });
