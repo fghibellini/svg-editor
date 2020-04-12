@@ -30,6 +30,9 @@ window.addEventListener("keydown", evt => {
     closeCurve();
   } else if (evt.key === 'h') {
     showAllHandles(bezierState);
+  } else if (evt.key === 'a' && !bezierState.drawingBezier) {
+    bezierState.isAddingPoint = true;
+    bezierState.$newPoint = addPoint({ x: 0, y: 0 });
   } else if (evt.key === 'Esc' || evt.key === 'Escape') {
     unselectBezier();
   }
@@ -55,7 +58,9 @@ let bezierState = {
   clickedPoint: null,
   clickedPointStartingCoords: null,
   clickedPointWasMoved: false,
-  clickedHandle: null
+  clickedHandle: null,
+  isAddingPoint: false,
+  $newPoint: null
 };
 
 canvas.addEventListener("mouseup", evt => {
@@ -93,7 +98,9 @@ function unselectBezier() {
     clickedPoint: null,
     clickedPointStartingCoords: null,
     clickedPointWasMoved: false,
-    clickedHandle: null
+    clickedHandle: null,
+    isAddingPoint: false,
+    $newPoint: null
   };
 }
 
@@ -101,10 +108,22 @@ function minimum(xs) {
   return xs.reduce((a, b) => Math.min(a, b));
 }
 
+function projectOnBezier(points, t) {
+  const ps = points.map(p => {
+    const n = p.next;
+    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
+    const projection = curve.project(t);
+    return { segment: p, projection, distance: computeDistance(t, projection) };
+  });
+  return ps.reduce((a, b) => {
+    return a.distance < b.distance ? a : b;
+  });
+}
+
 function distanceFromBezier(points, t) {
   const distances = points.map(p => {
     const n = p.next;
-    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.h2x, n.h2x === null ? n.y - n.hy : n.h2y, n.x, n.y);
+    const curve = new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
     const projection = curve.project(t);
     return computeDistance(t, projection);
   });
@@ -176,7 +195,7 @@ function computeDistance(p1, p2) {
 
 canvas.addEventListener("mousemove", evt => {
   const { x, y } = evt;
-  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle } = bezierState;
+  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle, isAddingPoint } = bezierState;
   if (isPressed) {
     const current = points[points.length - 1];
     current.hx = x - current.x;
@@ -204,6 +223,12 @@ canvas.addEventListener("mousemove", evt => {
       clickedPoint.y = y;
       onHandleChange(clickedPoint);
     }
+  } else if (isAddingPoint) {
+    const p = bezierState.$newPoint;
+    const pr = projectOnBezier(bezierState.points, { x, y });
+    p.setAttribute("cx", pr.projection.x);
+    p.setAttribute("cy", pr.projection.y);
+    p.setAttribute("fill", "red");
   } else {
   }
 }, true);
@@ -265,6 +290,10 @@ function showAllHandles(parent) {
   });
 }
 
+function vecDiff(a, b) {
+  return { x: a.x - b.x, y: a.y - b.y };
+}
+
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
@@ -290,6 +319,61 @@ canvas.addEventListener("mousedown", evt => {
       point.h2y = - point.hy;
     }
     bezierState.clickedHandle = r;
+  } else if (bezierState.isAddingPoint) {
+    const pr = projectOnBezier(bezierState.points, { x: evt.x, y: evt.y });
+    const curve = (function() {
+      const p = pr.segment;
+      const n = p.next;
+      return new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
+    })();
+    const split = curve.split(pr.projection.t);
+
+    // new point
+    const { x, y } = split.right.points[0];
+    const { x: hx, y: hy } = vecDiff(split.right.points[1], { x, y });
+    const { x: h2x, y: h2y } = vecDiff(split.left.points[2], { x, y });
+    const { x: prev_hx, y: prev_hy } = vecDiff(split.left.points[1], pr.segment);
+    const { x: next_h2x, y: next_h2y } = vecDiff(split.right.points[2], pr.segment.next);
+    const $lft_hdl = addPoint({ x: x + h2x, y: y + h2y });
+    const $rgt_hdl = addPoint({ x: x + hx, y: y + hy });
+    const $hdl_line = addLine({ x1: x + h2x, y1: y + h2y, x2: x + hx, y2: y + hy });
+    $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
+    const $el = addPoint({ x, y });
+    $el.setAttribute("r", 4);
+    $el.setAttribute("fill", "blue");
+    const new_point = { x, y, hx, hy, h2x, h2y, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: pr.segment, next: pr.segment.next, parent: pr.segment.parent };
+    new_point.prev.next = new_point;
+    new_point.next.prev = new_point;
+
+    if (new_point.prev.h2x === null) {
+      // split the handles on prev
+      new_point.prev.h2x = - new_point.prev.hx;
+      new_point.prev.h2y = - new_point.prev.hy;
+    }
+    // update prev handles
+    new_point.prev.hx = prev_hx;
+    new_point.prev.hy = prev_hy;
+
+    new_point.next.h2x = next_h2x;
+    new_point.next.h2y = next_h2y;
+
+    onHandleChange(new_point.prev);
+    onHandleChange(new_point.next);
+
+    const i = new_point.parent.points.findIndex(x => x === pr.segment);
+    new_point.parent.points.splice(i + 1, 0, new_point);
+    refreshBezierPath(new_point.parent);
+
+    // $el._Z_point = current;
+    // $lft_hdl._Z_handle = { point: current, side: HS.Left };
+    // $rgt_hdl._Z_handle = { point: current, side: HS.Right };
+
+    // pr.segment
+
+    // TODO remove
+    const p = bezierState.$newPoint;
+    p.setAttribute("cx", -100);
+    p.setAttribute("cy", -100);
   } else if (_clickedObject) {
     clickedObject = _clickedObject;
   } else if (bezierState.drawingBezier) {
