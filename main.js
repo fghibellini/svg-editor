@@ -36,8 +36,6 @@ window.addEventListener("resize", evt => {
   onResize();
 }, true);
 
-onResize();
-
 window.addEventListener("contextmenu", evt => {
   evt.preventDefault();
 });
@@ -58,29 +56,18 @@ window.addEventListener("keydown", evt => {
 // editor state
 const objects = [];
 let clickedObject = null;
-let bezierState = {
-  drawingBezier: true, // is currently drawing a bezier curve
-  isPressed: false, // ?
-  points: [],
-  isClosed: false,
-  $path: null,
-  clickedPoint: null,
-  clickedPointStartingCoords: null,
-  clickedPointWasMoved: false,
-  clickedHandle: null,
-  isAddingPoint: false,
-  $newPoint: null
-};
+let bezierState = emptyBezierState();
+
+(function init() {
+  onResize();
+  bezierState.drawingBezier = true;
+})();
 
 canvas.addEventListener("mouseup", evt => {
-  const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
+  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
   if (isPressed) {
-    const { x, y } = evt;
     const current = points[points.length - 1];
     bezierState.isPressed = false;
-    //current.$hdl_line.setAttribute("visibility", "hidden");
-    //current.$rgt_hdl.setAttribute("visibility", "hidden");
-    //current.$lft_hdl.setAttribute("visibility", "hidden");
   } else if (clickedObject) {
     bezierState = clickedObject;
     showAllHandles(bezierState);
@@ -96,9 +83,8 @@ canvas.addEventListener("mouseup", evt => {
   }
 }, true);
 
-function unselectBezier() {
-  hideAllHandles(bezierState);
-  bezierState = {
+function emptyBezierState() {
+  return {
     drawingBezier: false, // is currently drawing a bezier curve
     isPressed: false, // ?
     points: [],
@@ -110,7 +96,12 @@ function unselectBezier() {
     clickedHandle: null,
     isAddingPoint: false,
     $newPoint: null
-  };
+  }
+}
+
+function unselectBezier() {
+  hideAllHandles(bezierState);
+  bezierState = emptyBezierState();
 }
 
 /*
@@ -192,35 +183,19 @@ function svgBezierPath(closed, points) {
 }
 
 function closeCurve() {
-  const { drawingBezier, isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle, $path } = bezierState;
-  const t = points[0];
-  const prev = points[points.length - 1];
-  // const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  // path.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${t.x - t.hx} ${t.y - t.hy} ${t.x} ${t.y}`);
-  // path.setAttribute("stroke", "pink");
-  // path.setAttribute("fill", "none");
-  // zIndexHandleLines.insertAdjacentElement('afterend', path);
-  t.prev = prev;
-  prev.next = t;
-
-  objects.push(bezierState); // TODO map points
+  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle, $path } = bezierState;
+  // close loop
+  const fp = points[0]; // first point
+  const lp = points[points.length - 1]; // last point
+  fp.prev = lp;
+  lp.next = fp;
+  // create object
   bezierState.isClosed = true;
-
-  refreshBezierPath(bezierState);
-
   bezierState.drawingBezier = false;
+  objects.push(bezierState); // TODO map points
+  // update view
+  refreshBezierPath(bezierState);
   showAllHandles(bezierState);
-  //bezierState = {
-  //  drawingBezier: false, // is currently drawing a bezier curve
-  //  isPressed: false, // ?
-  //  points: [],
-  //  isClosed: false,
-  //  $path: null,
-  //  clickedPoint: null,
-  //  clickedPointStartingCoords: null,
-  //  clickedPointWasMoved: false,
-  //  clickedHandle: null
-  //};
 }
 
 function computeDistance(p1, p2) {
@@ -270,64 +245,48 @@ canvas.addEventListener("mousemove", evt => {
 }, true);
 
 function onHandleChange(p) {
-  const { x, y, hx, hy, h2x, h2y, $hdl_line, $rgt_hdl, $lft_hdl, prev, next } = p;
-  // handle A
-  $rgt_hdl.setAttribute("cx", x + hx);
-  $rgt_hdl.setAttribute("cy", y + hy);
-  // handleB
-  $lft_hdl.setAttribute("cx", h2x === null ? x - hx : x + h2x);
-  $lft_hdl.setAttribute("cy", h2x === null ? y - hy : y + h2y);
-  // handle-line
-  if (h2x === null) {
-    $hdl_line.setAttribute("d", `M ${x - hx} ${y - hy} L ${x + hx} ${y + hy}`);
-  } else {
-    $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
-  }
-  //if ($lft_seg) {
-  //  $lft_seg.setAttribute("d", `M ${prev.x} ${prev.y} C ${prev.x + prev.hx} ${prev.y + prev.hy} ${h2x === null ? x - hx : x + h2x} ${h2x === null ? y - hy : y + h2y} ${x} ${y}`);
-  //}
-  //if (next) {
-  //  next.$lft_seg.setAttribute("d", `M ${x} ${y} C ${x + hx} ${y + hy} ${next.h2x === null ? next.x - next.hx : next.x + next.h2x} ${next.h2y === null ? next.y - next.hy : next.y + next.h2y} ${next.x} ${next.y}`);
-  //}
-  refreshBezierPath(p.parent);
+  const { x, y, h2y, $hdl_line, $rgt_hdl, $lft_hdl, prev, next } = p;
+  const { left, right } = handlePoints(p);
+  // point
   p.$el.setAttribute("cx", x);
   p.$el.setAttribute("cy", y);
+  // handle right
+  $rgt_hdl.setAttribute("cx", right.x);
+  $rgt_hdl.setAttribute("cy", right.y);
+  // handle left
+  $lft_hdl.setAttribute("cx", left.x);
+  $lft_hdl.setAttribute("cy", left.y);
+  // handle-line(s)
+  $hdl_line.setAttribute("d",
+    h2y === null
+      ? `M ${right.x} ${right.y} L ${left.x} ${left.y}`
+      : `M ${right.x} ${right.y} L ${x} ${y} L ${left.x} ${left.y}`
+  );
+  // TODO separate
+  refreshBezierPath(p.parent);
 }
 
 function refreshBezierPath({ isClosed, points, $path }) {
-  if ($path) {
+  if ($path) { // null when fewer than 2 points
     const d = svgBezierPath(isClosed, points);
     $path.setAttribute("d", d);
   }
 }
 
-function hideHandles(point) {
-  point.$lft_hdl.setAttribute("visibility", "hidden");
-  point.$rgt_hdl.setAttribute("visibility", "hidden");
-  point.$el.setAttribute("visibility", "hidden");
-  point.$hdl_line.setAttribute("visibility", "hidden");
+function setHandleVisible(isVisible, point) {
+  const visibility = isVisible ? "visible": "hidden";
+  point.$lft_hdl.setAttribute("visibility", visibility);
+  point.$rgt_hdl.setAttribute("visibility", visibility);
+  point.$el.setAttribute("visibility", visibility);
+  point.$hdl_line.setAttribute("visibility", visibility);
 }
 
 function hideAllHandles(parent) {
-  parent.points.forEach(point => {
-    point.$lft_hdl.setAttribute("visibility", "hidden");
-    point.$rgt_hdl.setAttribute("visibility", "hidden");
-    point.$el.setAttribute("visibility", "hidden");
-    point.$hdl_line.setAttribute("visibility", "hidden");
-  });
+  parent.points.forEach(point => setHandleVisible(false, point));
 }
 
 function showAllHandles(parent) {
-  parent.points.forEach(point => {
-    point.$lft_hdl.setAttribute("visibility", "visible");
-    point.$rgt_hdl.setAttribute("visibility", "visible");
-    point.$el.setAttribute("visibility", "visible");
-    point.$hdl_line.setAttribute("visibility", "visible");
-  });
-}
-
-function vecDiff(a, b) {
-  return { x: a.x - b.x, y: a.y - b.y };
+  parent.points.forEach(point => setHandleVisible(true, point));
 }
 
 canvas.addEventListener("mousedown", evt => {
@@ -400,12 +359,6 @@ canvas.addEventListener("mousedown", evt => {
     new_point.parent.points.splice(i + 1, 0, new_point);
     refreshBezierPath(new_point.parent);
 
-    // $el._Z_point = current;
-    // $lft_hdl._Z_handle = { point: current, side: HS.Left };
-    // $rgt_hdl._Z_handle = { point: current, side: HS.Right };
-
-    // pr.segment
-
     // TODO remove
     const p = bezierState.$newPoint;
     p.setAttribute("cx", -100);
@@ -414,7 +367,7 @@ canvas.addEventListener("mousedown", evt => {
     clickedObject = _clickedObject;
   } else if (bezierState.drawingBezier) {
     const { x, y } = evt;
-    const { drawingBezier, isPressed, points } = bezierState;
+    const { isPressed, points } = bezierState;
 
     bezierState.isPressed = true;
 
@@ -430,7 +383,7 @@ canvas.addEventListener("mousedown", evt => {
     if (points.length > 0) {
       const prev = points[points.length - 1];
       prev.next = current;
-      hideHandles(prev);
+      setHandleVisible(false, prev);
     }
     points.push(current);
 
