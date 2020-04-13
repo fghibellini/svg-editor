@@ -4,11 +4,17 @@
  */
 const MIN_MOVEMENT = 3;
 const HIT_PROXIMITY = 5;
+const SQ_HDL_HW = 2; // SQUARE_HANDLE_HALF_WIDTH
 
 // Handle Side
 const HS = {
-  Left: Symbol("<left>"),
-  Right: Symbol("<right>")
+  Left: Symbol("<LeftHandle>"),
+  Right: Symbol("<RightHandle>")
+};
+
+const MODE = {
+  Objekt: Symbol("<ObjectMode>"),
+  Edit: Symbol("<EditMode>")
 };
 
 const canvas = document.getElementById("canvas");
@@ -50,17 +56,40 @@ window.addEventListener("keydown", evt => {
     bezierState.$newPoint = addPoint({ x: 0, y: 0 });
   } else if (evt.key === 'Esc' || evt.key === 'Escape') {
     unselectBezier();
+  } else if (evt.key === 'Tab') {
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (mode === MODE.Objekt) {
+      switchToEditMode();
+      refreshStatusBox();
+    } else {
+      switchToObjektMode();
+      refreshStatusBox();
+    }
   }
 }, true);
 
 // editor state
 const objects = [];
+let mode = MODE.Objekt;
 let clickedObject = null;
 let bezierState = emptyBezierState();
+let objectMode = {
+  selectionBox: null
+};
+
+let $statusBox = newInfoBox();
+
+function refreshStatusBox() {
+  $statusBox.setAttribute("x", 1000);
+  $statusBox.setAttribute("y", 20);
+  $statusBox.innerHTML = mode === MODE.Objekt ? "[Object]" : "[Edit]";
+}
 
 (function init() {
   onResize();
   bezierState.drawingBezier = true;
+  refreshStatusBox();
 })();
 
 canvas.addEventListener("mouseup", evt => {
@@ -70,7 +99,13 @@ canvas.addEventListener("mouseup", evt => {
     bezierState.isPressed = false;
   } else if (clickedObject) {
     bezierState = clickedObject;
-    showAllHandles(bezierState);
+    if (mode === MODE.Objekt) {
+      objectMode.selectionBox = newSelectionBox();
+      const bbox = bezierBoundingBox(bezierState.points);
+      selectionBoxSetPosition(objectMode.selectionBox, { x: bbox.x.min, y: bbox.y.min }, { x: bbox.x.max, y: bbox.y.max });
+    } else {
+      showAllHandles(bezierState);
+    }
     clickedObject = null;
   } else if (clickedHandle) {
     bezierState.clickedHandle = null;
@@ -82,6 +117,25 @@ canvas.addEventListener("mouseup", evt => {
     // TODO highlight handles ?
   }
 }, true);
+
+function switchToObjektMode() {
+  mode = MODE.Objekt;
+
+  hideAllHandles(bezierState);
+
+  objectMode.selectionBox = newSelectionBox();
+  const bbox = bezierBoundingBox(bezierState.points);
+  selectionBoxSetPosition(objectMode.selectionBox, { x: bbox.x.min, y: bbox.y.min }, { x: bbox.x.max, y: bbox.y.max });
+}
+
+function switchToEditMode() {
+  mode = MODE.Edit;
+
+  destroySelectionBox(objectMode.selectionBox);
+  objectMode.selectionBox = null;
+
+  showAllHandles(bezierState);
+}
 
 function emptyBezierState() {
   return {
@@ -102,6 +156,10 @@ function emptyBezierState() {
 function unselectBezier() {
   hideAllHandles(bezierState);
   bezierState = emptyBezierState();
+  if (objectMode.selectionBox) {
+    destroySelectionBox(objectMode.selectionBox);
+    objectMode.selectionBox = null;
+  }
 }
 
 /*
@@ -150,6 +208,28 @@ function projectOnBezier(points, t) {
   return ps.reduce((a, b) => {
     return a.distance < b.distance ? a : b;
   });
+}
+
+function bezierBoundingBox(points) {
+  const ps = points.map(p => {
+    const n = p.next;
+    const ph = handlePoints(p);
+    const nh = handlePoints(n);
+    const curve = new Bezier(p, ph.right, nh.left, n);
+    return curve.bbox();
+  });
+  return ps.reduce((a, b) => {
+    return {
+      x: {
+        min: Math.min(a.x.min, b.x.min),
+        max: Math.max(a.x.max, b.x.max),
+      },
+      y: {
+        min: Math.min(a.y.min, b.y.min),
+        max: Math.max(a.y.max, b.y.max),
+      }
+    }
+  })
 }
 
 function distanceFromBezier(points, t) {
@@ -433,5 +513,60 @@ function addLine(p) {
   line.setAttribute("fill", "none");
   zIndexHandleLines.insertAdjacentElement('afterend', line);
   return line;
+}
+
+function selectionBoxSetPosition(rect, tl, br) {
+  rect.$main.setAttribute("x", tl.x);
+  rect.$main.setAttribute("y", tl.y);
+  rect.$main.setAttribute("width", br.x - tl.x);
+  rect.$main.setAttribute("height", br.y - tl.y);
+
+  selectionBoxPointSetPosition(rect.$tl, tl);
+  selectionBoxPointSetPosition(rect.$tr, { x: br.x, y: tl.y });
+  selectionBoxPointSetPosition(rect.$bl, { x: tl.x, y: br.y });
+  selectionBoxPointSetPosition(rect.$br, br);
+}
+
+function destroySelectionBox(box) {
+  box.$main.remove();
+  box.$tl.remove();
+  box.$tr.remove();
+  box.$bl.remove();
+  box.$br.remove();
+}
+
+function newSelectionBox() {
+  const $main = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  $main.setAttribute("stroke", "blue");
+  $main.setAttribute("fill", "none");
+  zIndexHandleLines.insertAdjacentElement('afterend', $main);
+
+  const $tl = newSelectionBoxPoint();
+  const $tr = newSelectionBoxPoint();
+  const $bl = newSelectionBoxPoint();
+  const $br = newSelectionBoxPoint();
+
+  return { $main, $tl, $tr, $bl, $br };
+}
+
+function selectionBoxPointSetPosition(point, pos) {
+  point.setAttribute("x", pos.x - SQ_HDL_HW);
+  point.setAttribute("y", pos.y - SQ_HDL_HW);
+}
+
+function newSelectionBoxPoint() {
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rect.setAttribute("width", SQ_HDL_HW * 2);
+  rect.setAttribute("height", SQ_HDL_HW * 2);
+  rect.setAttribute("stroke", "none");
+  rect.setAttribute("fill", "blue");
+  zIndexHandleLines.insertAdjacentElement('afterend', rect);
+  return rect;
+}
+
+function newInfoBox() {
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  zIndexHandleLines.insertAdjacentElement('afterend', text);
+  return text;
 }
 

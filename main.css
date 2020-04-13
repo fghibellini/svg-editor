@@ -5,3 +5,8 @@ body, html {
   min-height: 100vh;
   overflow: hidden;
 }
+
+text {
+  user-select: none;
+  pointer-events: none;
+}
