@@ -4,12 +4,24 @@
  */
 const MIN_MOVEMENT = 3;
 const HIT_PROXIMITY = 5;
-const SQ_HDL_HW = 2; // SQUARE_HANDLE_HALF_WIDTH
+const SQ_HDL_HW = 3; // SQUARE_HANDLE_HALF_WIDTH
 
 // Handle Side
 const HS = {
   Left: Symbol("<LeftHandle>"),
   Right: Symbol("<RightHandle>")
+};
+
+// Selection Box Handle
+const SBH = {
+  TL: Symbol("<TopLeft>"),
+  TR: Symbol("<TopRight>"),
+  BL: Symbol("<BottomLeft>"),
+  BR: Symbol("<BottomRight>"),
+  T: Symbol("<Top>"),
+  L: Symbol("<Left>"),
+  R: Symbol("<Right>"),
+  B: Symbol("<Bottom>")
 };
 
 const MODE = {
@@ -61,10 +73,10 @@ window.addEventListener("keydown", evt => {
     evt.stopPropagation();
     if (mode === MODE.Objekt) {
       switchToEditMode();
-      refreshStatusBox();
+      // refreshStatusBox();
     } else {
       switchToObjektMode();
-      refreshStatusBox();
+      // refreshStatusBox();
     }
   }
 }, true);
@@ -75,7 +87,11 @@ let mode = MODE.Objekt;
 let clickedObject = null;
 let bezierState = emptyBezierState();
 let objectMode = {
-  selectionBox: null
+  selectionBox: null,
+  $g: null,
+  initialState: null, // set while switching to object mode
+  mouseDownState: null, // set on mousedown
+  currentState: null // set on mousemove
 };
 
 let $statusBox = newInfoBox();
@@ -89,7 +105,9 @@ function refreshStatusBox() {
 (function init() {
   onResize();
   bezierState.drawingBezier = true;
-  refreshStatusBox();
+  setInterval(() => {
+    refreshStatusBox();
+  }, 50);
 })();
 
 canvas.addEventListener("mouseup", evt => {
@@ -97,6 +115,21 @@ canvas.addEventListener("mouseup", evt => {
   if (isPressed) {
     const current = points[points.length - 1];
     bezierState.isPressed = false;
+  } else if (objectMode.mouseDownState) {
+    if (objectMode.mouseDownState.sbh !== null) { // RESIZE
+      if (objectMode.mouseDownState.points_) {
+        // apply the transformation
+        objectMode.mouseDownState.points_.forEach((p, i) => {
+          const o = bezierState.points[i];
+          Object.assign(o, p); // assign new coords while maintaining the references to SVG nodes
+        });
+        bezierState.points.forEach(onHandleChange);
+        objectMode.mouseDownState.points_ = null;
+      }
+    } else { // MOVE
+      ;
+    }
+    objectMode.mouseDownState = null;
   } else if (clickedObject) {
     bezierState = clickedObject;
     if (mode === MODE.Objekt) {
@@ -126,6 +159,17 @@ function switchToObjektMode() {
   objectMode.selectionBox = newSelectionBox();
   const bbox = bezierBoundingBox(bezierState.points);
   selectionBoxSetPosition(objectMode.selectionBox, { x: bbox.x.min, y: bbox.y.min }, { x: bbox.x.max, y: bbox.y.max });
+  objectMode.initialState = {
+    x: bbox.x.min,
+    y: bbox.y.min,
+    width: bbox.x.max - bbox.x.min,
+    height: bbox.y.max - bbox.y.min
+  };
+
+  objectMode.$g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  objectMode.$g.setAttribute("class", "transform-wrapper");
+  zIndexHandleLines.insertAdjacentElement('afterend', objectMode.$g);
+  objectMode.$g.appendChild(bezierState.$path);
 }
 
 function switchToEditMode() {
@@ -292,6 +336,70 @@ canvas.addEventListener("mousemove", evt => {
     current.hx = x - current.x;
     current.hy = y - current.y;
     onHandleChange(current);
+  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh === null) {
+    // ----
+    // MOVE
+    // ----
+    const delta = vecDiff(evt, objectMode.mouseDownState);
+    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
+    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
+    const tl = vecAdd(objectMode.initialState, delta);
+    const br = vecAdd(tl, { x: objectMode.initialState.width, y: objectMode.initialState.height });
+    objectMode.$g.setAttribute("transform", `translate(${delta.x}, ${delta.y})`);
+    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
+  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh !== null) {
+    // ------
+    // RESIZE
+    // ------
+    const delta = vecDiff(evt, objectMode.mouseDownState);
+    const tld = { // top-left delta
+      x: isLeftEdge(objectMode.mouseDownState.sbh) ? delta.x : 0,
+      y: isTopEdge(objectMode.mouseDownState.sbh) ? delta.y : 0
+    };
+    const tl = vecAdd(objectMode.initialState, tld);
+    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
+    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
+    const newDimensions = {
+      x: objectMode.initialState.width +
+          (isRightEdge(objectMode.mouseDownState.sbh) ? delta.x :
+           isLeftEdge(objectMode.mouseDownState.sbh) ? (- delta.x) :
+           0),
+      y: objectMode.initialState.height +
+          (isBottomEdge(objectMode.mouseDownState.sbh) ? delta.y :
+           isTopEdge(objectMode.mouseDownState.sbh) ? (- delta.y) :
+           0)
+    };
+    const mat = multiplyMatrices(
+      translateMat(-objectMode.initialState.x, -objectMode.initialState.y),
+      scaleMat(newDimensions.x / objectMode.initialState.width, newDimensions.y / objectMode.initialState.height)
+    );
+    const points_ = transformBezierPoints(
+      bezierState.points,
+      objectMode.initialState,
+      {
+        x: newDimensions.x / objectMode.initialState.width,
+        y: newDimensions.y / objectMode.initialState.height
+      },
+      tld
+    );
+    objectMode.mouseDownState.points_ = points_; // save for mouseup
+    refreshBezierPath({
+      isClosed: true,
+      points: points_,
+      $path: bezierState.$path
+    });
+    // 1. move to origin
+    // 2. resize
+    // 3. move back into position
+    // 4. apply translation
+   // objectMode.$g.setAttribute("transform", [
+   //   `matrix(${mat[0]} ${mat[3]} ${mat[1]} ${mat[4]} ${mat[2]} ${mat[5]})`
+   //   // `scale(${newDimensions.x / objectMode.initialState.width} ${newDimensions.y / objectMode.initialState.height})`
+   //   // `translate(${objectMode.initialState.x}, ${objectMode.initialState.y})`,
+   //   // `translate(${tld.x}, ${tld.y})`
+   // ].join(" "));
+    const br = vecAdd(tl, newDimensions);
+    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
   } else if (clickedHandle) {
     const point = clickedHandle.point;
     if (clickedHandle.side == HS.Right) {
@@ -346,6 +454,24 @@ function onHandleChange(p) {
   refreshBezierPath(p.parent);
 }
 
+function transformBezierPoints(points, origin, scale, move) {
+  const mat = composeMatrices([
+    translateMat(-origin.x, -origin.y),
+    scaleMat(scale.x, scale.y),
+    translateMat(origin.x, origin.y),
+    translateMat(move.x, move.y)
+  ]);
+  return points.map(p => {
+    const { x, y } = transform(p, mat);
+    const hx = p.hx * scale.x;
+    const hy = p.hy * scale.y;
+    const h2x = p.h2x === null ? null : p.h2x * scale.x; // TODO third case
+    const h2y = p.h2y === null ? null : p.h2y * scale.y;
+    return { x, y, hx, hy, h2x, h2y };
+  });
+}
+
+
 function refreshBezierPath({ isClosed, points, $path }) {
   if ($path) { // null when fewer than 2 points
     const d = svgBezierPath(isClosed, points);
@@ -372,6 +498,8 @@ function showAllHandles(parent) {
 canvas.addEventListener("mousedown", evt => {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
+  const v = evt.target._Z_selectionBoxFrame;
+  const s = evt.target._Z_selectionBoxHandle;
   // const s = evt.target._Z_path;
 
   const _clickedObject = objects.length < 1 ? null :
@@ -387,6 +515,19 @@ canvas.addEventListener("mousedown", evt => {
     bezierState.clickedPoint = t;
     bezierState.clickedPointWasMoved = false;
     bezierState.clickedPointStartingCoords = { x: evt.x, y: evt.y };
+  } else if (v) {
+    objectMode.mouseDownState = {
+      x: evt.x,
+      y: evt.y,
+      sbh: null
+    };
+  } else if (s) {
+    objectMode.mouseDownState = {
+      x: evt.x,
+      y: evt.y,
+      sbh: s.sbh,
+      points_: null // cached value from mousemove reused in mouseup
+    };
   } else if (r) {
     const point = r.point;
     if (evt.ctrlKey && point.h2x === null) {
@@ -525,6 +666,10 @@ function selectionBoxSetPosition(rect, tl, br) {
   selectionBoxPointSetPosition(rect.$tr, { x: br.x, y: tl.y });
   selectionBoxPointSetPosition(rect.$bl, { x: tl.x, y: br.y });
   selectionBoxPointSetPosition(rect.$br, br);
+  selectionBoxPointSetPosition(rect.$t, { x: (tl.x + br.x) / 2, y: tl.y });
+  selectionBoxPointSetPosition(rect.$b, { x: (tl.x + br.x) / 2, y: br.y });
+  selectionBoxPointSetPosition(rect.$l, { x: tl.x, y: (tl.y + br.y) / 2 });
+  selectionBoxPointSetPosition(rect.$r, { x: br.x, y: (tl.y + br.y) / 2 });
 }
 
 function destroySelectionBox(box) {
@@ -533,6 +678,10 @@ function destroySelectionBox(box) {
   box.$tr.remove();
   box.$bl.remove();
   box.$br.remove();
+  box.$t.remove();
+  box.$b.remove();
+  box.$l.remove();
+  box.$r.remove();
 }
 
 function newSelectionBox() {
@@ -540,13 +689,19 @@ function newSelectionBox() {
   $main.setAttribute("stroke", "blue");
   $main.setAttribute("fill", "none");
   zIndexHandleLines.insertAdjacentElement('afterend', $main);
+  $main._Z_selectionBoxFrame = {};
 
-  const $tl = newSelectionBoxPoint();
-  const $tr = newSelectionBoxPoint();
-  const $bl = newSelectionBoxPoint();
-  const $br = newSelectionBoxPoint();
+  const $tl = newSelectionBoxPoint(SBH.TL);
+  const $tr = newSelectionBoxPoint(SBH.TR);
+  const $bl = newSelectionBoxPoint(SBH.BL);
+  const $br = newSelectionBoxPoint(SBH.BR);
+  const $t = newSelectionBoxPoint(SBH.T);
+  const $b = newSelectionBoxPoint(SBH.B);
+  const $l = newSelectionBoxPoint(SBH.L);
+  const $r = newSelectionBoxPoint(SBH.R);
 
-  return { $main, $tl, $tr, $bl, $br };
+
+  return { $main, $tl, $tr, $bl, $br, $t, $b, $l, $r };
 }
 
 function selectionBoxPointSetPosition(point, pos) {
@@ -554,13 +709,51 @@ function selectionBoxPointSetPosition(point, pos) {
   point.setAttribute("y", pos.y - SQ_HDL_HW);
 }
 
-function newSelectionBoxPoint() {
+function coordsToTopLeft(sbh, point, { width, height }) {
+  return {
+    x: (sbh === SBH.TL || sbh === SBH.BL) ? point.x : point.x - width,
+    y: (sbh === SBH.TL || sbh === SBH.TR) ? point.y : point.y - height
+  };
+}
+
+function isLeftEdge(sbh) {
+  return (
+       sbh === SBH.TL
+    || sbh === SBH.L
+    || sbh === SBH.BL);
+}
+
+function isRightEdge(sbh) {
+  return (
+       sbh === SBH.TR
+    || sbh === SBH.R
+    || sbh === SBH.BR);
+}
+
+function isTopEdge(sbh) {
+  return (
+       sbh === SBH.TL
+    || sbh === SBH.T
+    || sbh === SBH.TR);
+}
+
+function isBottomEdge(sbh) {
+  return (
+       sbh === SBH.BL
+    || sbh === SBH.B
+    || sbh === SBH.BR);
+}
+
+function newSelectionBoxPoint(sbh) {
   const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   rect.setAttribute("width", SQ_HDL_HW * 2);
   rect.setAttribute("height", SQ_HDL_HW * 2);
   rect.setAttribute("stroke", "none");
   rect.setAttribute("fill", "blue");
   zIndexHandleLines.insertAdjacentElement('afterend', rect);
+  rect._Z_selectionBoxHandle = {
+    sbh
+  };
   return rect;
 }
 
