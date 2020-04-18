@@ -66,3 +66,10 @@ function multiplyMatrices(ae, be) {
     a31 * b13 + a32 * b23 + a33 * b33
   ];
 }
+
+function computeDistance(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+

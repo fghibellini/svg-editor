@@ -48,6 +48,7 @@ function onResize() {
   canvas.setAttribute("width", width);
   canvas.setAttribute("height", height);
   canvas.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  refreshStatusBox();
 }
 
 window.addEventListener("resize", evt => {
@@ -97,9 +98,10 @@ let objectMode = {
 let $statusBox = newInfoBox();
 
 function refreshStatusBox() {
-  $statusBox.setAttribute("x", 1000);
-  $statusBox.setAttribute("y", 20);
   $statusBox.innerHTML = mode === MODE.Objekt ? "[Object]" : "[Edit]";
+  const bbox = $statusBox.getBoundingClientRect();
+  $statusBox.setAttribute("x", document.body.clientWidth - bbox.width - 10);
+  $statusBox.setAttribute("y", 20);
 }
 
 (function init() {
@@ -109,6 +111,236 @@ function refreshStatusBox() {
     refreshStatusBox();
   }, 50);
 })();
+
+canvas.addEventListener("mousedown", evt => {
+  const t = evt.target._Z_point;
+  const r = evt.target._Z_handle;
+  const v = evt.target._Z_selectionBoxFrame;
+  const s = evt.target._Z_selectionBoxHandle;
+  // const s = evt.target._Z_path;
+
+  const _clickedObject = objects.length < 1 ? null :
+    (function() {
+      const distances = objects.map(o => ({ obj: o, d: distanceFromBezier(o.points, { x: evt.x, y: evt.y }) }));
+      const closest = distances.reduce((a, b) => {
+        return a.d < b.d ? a : b;
+      });
+      return closest.d < HIT_PROXIMITY ? closest.obj : null;
+    })();
+
+  if (t) {
+    bezierState.clickedPoint = t;
+    bezierState.clickedPointWasMoved = false;
+    bezierState.clickedPointStartingCoords = { x: evt.x, y: evt.y };
+  } else if (v) {
+    objectMode.mouseDownState = {
+      x: evt.x,
+      y: evt.y,
+      sbh: null
+    };
+  } else if (s) {
+    objectMode.mouseDownState = {
+      x: evt.x,
+      y: evt.y,
+      sbh: s.sbh,
+      points_: null // cached value from mousemove reused in mouseup
+    };
+  } else if (r) {
+    const point = r.point;
+    if (evt.ctrlKey && point.h2x === null) {
+      point.h2x = - point.hx;
+      point.h2y = - point.hy;
+    }
+    bezierState.clickedHandle = r;
+  } else if (bezierState.isAddingPoint) {
+    const pr = projectOnBezier(bezierState.points, { x: evt.x, y: evt.y });
+    const curve = (function() {
+      const p = pr.segment;
+      const n = p.next;
+      return new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
+    })();
+    const split = curve.split(pr.projection.t);
+
+    // new point
+    const { x, y } = split.right.points[0];
+    const { x: hx, y: hy } = vecDiff(split.right.points[1], { x, y });
+    const { x: h2x, y: h2y } = vecDiff(split.left.points[2], { x, y });
+    const { x: prev_hx, y: prev_hy } = vecDiff(split.left.points[1], pr.segment);
+    const { x: next_h2x, y: next_h2y } = vecDiff(split.right.points[2], pr.segment.next);
+    const $lft_hdl = addPoint({ x: x + h2x, y: y + h2y });
+    const $rgt_hdl = addPoint({ x: x + hx, y: y + hy });
+    const $hdl_line = addLine({ x1: x + h2x, y1: y + h2y, x2: x + hx, y2: y + hy });
+    $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
+    const $el = addPoint({ x, y });
+    $el.setAttribute("r", 4);
+    $el.setAttribute("fill", "blue");
+    const new_point = { x, y, hx, hy, h2x, h2y, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: pr.segment, next: pr.segment.next, parent: pr.segment.parent };
+    new_point.prev.next = new_point;
+    new_point.next.prev = new_point;
+
+    if (new_point.prev.h2x === null) {
+      // split the handles on prev
+      new_point.prev.h2x = - new_point.prev.hx;
+      new_point.prev.h2y = - new_point.prev.hy;
+    }
+    // update prev handles
+    new_point.prev.hx = prev_hx;
+    new_point.prev.hy = prev_hy;
+
+    new_point.next.h2x = next_h2x;
+    new_point.next.h2y = next_h2y;
+
+    onHandleChange(new_point.prev);
+    onHandleChange(new_point.next);
+
+    const i = new_point.parent.points.findIndex(x => x === pr.segment);
+    new_point.parent.points.splice(i + 1, 0, new_point);
+    refreshBezierPath(new_point.parent);
+
+    // TODO remove
+    const p = bezierState.$newPoint;
+    p.setAttribute("cx", -100);
+    p.setAttribute("cy", -100);
+  } else if (_clickedObject) {
+    clickedObject = _clickedObject;
+  } else if (bezierState.drawingBezier) {
+    const { x, y } = evt;
+    const { isPressed, points } = bezierState;
+
+    bezierState.isPressed = true;
+
+    const $lft_hdl = addPoint({ x: 0, y: 0 });
+    const $rgt_hdl = addPoint({ x: 0, y: 0 });
+    const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }); // TODO initial position
+    const $el = addPoint({ x, y });
+    $el.setAttribute("r", 4);
+    const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null, parent: bezierState }
+    $el._Z_point = current;
+    $lft_hdl._Z_handle = { point: current, side: HS.Left };
+    $rgt_hdl._Z_handle = { point: current, side: HS.Right };
+    if (points.length > 0) {
+      const prev = points[points.length - 1];
+      prev.next = current;
+      setHandleVisible(false, prev);
+    }
+    points.push(current);
+
+    if (points.length === 2) {
+      const prev = points[0];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
+      path.setAttribute("stroke", "pink");
+      path.setAttribute("fill", "none");
+      zIndexLines.insertAdjacentElement('afterend', path);
+      path._Z_path = bezierState;
+      bezierState.$path = path;
+    }
+  }
+}, true);
+
+canvas.addEventListener("mousemove", evt => {
+  const { x, y } = evt;
+  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle, isAddingPoint } = bezierState;
+  if (isPressed) {
+    const current = points[points.length - 1];
+    current.hx = x - current.x;
+    current.hy = y - current.y;
+    onHandleChange(current);
+  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh === null) {
+    // ----
+    // MOVE
+    // ----
+    const delta = vecDiff(evt, objectMode.mouseDownState);
+    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
+    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
+    const tl = vecAdd(objectMode.initialState, delta);
+    const br = vecAdd(tl, { x: objectMode.initialState.width, y: objectMode.initialState.height });
+    objectMode.$g.setAttribute("transform", `translate(${delta.x}, ${delta.y})`);
+    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
+  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh !== null) {
+    // ------
+    // RESIZE
+    // ------
+    const delta = vecDiff(evt, objectMode.mouseDownState);
+    const tld = { // top-left delta
+      x: isLeftEdge(objectMode.mouseDownState.sbh) ? delta.x : 0,
+      y: isTopEdge(objectMode.mouseDownState.sbh) ? delta.y : 0
+    };
+    const tl = vecAdd(objectMode.initialState, tld);
+    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
+    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
+    const newDimensions = {
+      x: objectMode.initialState.width +
+          (isRightEdge(objectMode.mouseDownState.sbh) ? delta.x :
+           isLeftEdge(objectMode.mouseDownState.sbh) ? (- delta.x) :
+           0),
+      y: objectMode.initialState.height +
+          (isBottomEdge(objectMode.mouseDownState.sbh) ? delta.y :
+           isTopEdge(objectMode.mouseDownState.sbh) ? (- delta.y) :
+           0)
+    };
+    const mat = multiplyMatrices(
+      translateMat(-objectMode.initialState.x, -objectMode.initialState.y),
+      scaleMat(newDimensions.x / objectMode.initialState.width, newDimensions.y / objectMode.initialState.height)
+    );
+    const points_ = transformBezierPoints(
+      bezierState.points,
+      objectMode.initialState,
+      {
+        x: newDimensions.x / objectMode.initialState.width,
+        y: newDimensions.y / objectMode.initialState.height
+      },
+      tld
+    );
+    objectMode.mouseDownState.points_ = points_; // save for mouseup
+    refreshBezierPath({
+      isClosed: true,
+      points: points_,
+      $path: bezierState.$path
+    });
+    // 1. move to origin
+    // 2. resize
+    // 3. move back into position
+    // 4. apply translation
+   // objectMode.$g.setAttribute("transform", [
+   //   `matrix(${mat[0]} ${mat[3]} ${mat[1]} ${mat[4]} ${mat[2]} ${mat[5]})`
+   //   // `scale(${newDimensions.x / objectMode.initialState.width} ${newDimensions.y / objectMode.initialState.height})`
+   //   // `translate(${objectMode.initialState.x}, ${objectMode.initialState.y})`,
+   //   // `translate(${tld.x}, ${tld.y})`
+   // ].join(" "));
+    const br = vecAdd(tl, newDimensions);
+    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
+  } else if (clickedHandle) {
+    const point = clickedHandle.point;
+    if (clickedHandle.side == HS.Right) {
+      point.hx = x - point.x;
+      point.hy = y - point.y;
+    } else {
+      if (point.h2x === null) {
+        point.hx = point.x - x;
+        point.hy = point.y - y;
+      } else {
+        point.h2x = x - point.x;
+        point.h2y = y - point.y;
+      }
+    }
+    onHandleChange(point);
+  } else if (clickedPoint) {
+    if (clickedPointWasMoved || computeDistance(evt, clickedPointStartingCoords) > MIN_MOVEMENT) {
+      bezierState.clickedPointWasMoved = true;
+      clickedPoint.x = x;
+      clickedPoint.y = y;
+      onHandleChange(clickedPoint);
+    }
+  } else if (isAddingPoint) {
+    const p = bezierState.$newPoint;
+    const pr = projectOnBezier(bezierState.points, { x, y });
+    p.setAttribute("cx", pr.projection.x);
+    p.setAttribute("cy", pr.projection.y);
+    p.setAttribute("fill", "red");
+  } else {
+  }
+}, true);
 
 canvas.addEventListener("mouseup", evt => {
   const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
@@ -133,9 +365,7 @@ canvas.addEventListener("mouseup", evt => {
   } else if (clickedObject) {
     bezierState = clickedObject;
     if (mode === MODE.Objekt) {
-      objectMode.selectionBox = newSelectionBox();
-      const bbox = bezierBoundingBox(bezierState.points);
-      selectionBoxSetPosition(objectMode.selectionBox, { x: bbox.x.min, y: bbox.y.min }, { x: bbox.x.max, y: bbox.y.max });
+      switchToObjektMode();
     } else {
       showAllHandles(bezierState);
     }
@@ -152,9 +382,13 @@ canvas.addEventListener("mouseup", evt => {
 }, true);
 
 function switchToObjektMode() {
-  mode = MODE.Objekt;
 
-  hideAllHandles(bezierState);
+  //cleanup
+  {
+    hideAllHandles(bezierState);
+  }
+
+  mode = MODE.Objekt;
 
   objectMode.selectionBox = newSelectionBox();
   const bbox = bezierBoundingBox(bezierState.points);
@@ -322,116 +556,6 @@ function closeCurve() {
   showAllHandles(bezierState);
 }
 
-function computeDistance(p1, p2) {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-canvas.addEventListener("mousemove", evt => {
-  const { x, y } = evt;
-  const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle, isAddingPoint } = bezierState;
-  if (isPressed) {
-    const current = points[points.length - 1];
-    current.hx = x - current.x;
-    current.hy = y - current.y;
-    onHandleChange(current);
-  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh === null) {
-    // ----
-    // MOVE
-    // ----
-    const delta = vecDiff(evt, objectMode.mouseDownState);
-    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
-    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
-    const tl = vecAdd(objectMode.initialState, delta);
-    const br = vecAdd(tl, { x: objectMode.initialState.width, y: objectMode.initialState.height });
-    objectMode.$g.setAttribute("transform", `translate(${delta.x}, ${delta.y})`);
-    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
-  } else if (objectMode.mouseDownState && objectMode.mouseDownState.sbh !== null) {
-    // ------
-    // RESIZE
-    // ------
-    const delta = vecDiff(evt, objectMode.mouseDownState);
-    const tld = { // top-left delta
-      x: isLeftEdge(objectMode.mouseDownState.sbh) ? delta.x : 0,
-      y: isTopEdge(objectMode.mouseDownState.sbh) ? delta.y : 0
-    };
-    const tl = vecAdd(objectMode.initialState, tld);
-    // const evtTL = coordsToTopLeft(objectMode.mouseDownState.sbh, evt, objectMode.initialState);
-    // const initTL = coordsToTopLeft(objectMode.mouseDownState.sbh, objectMode.mouseDownState, objectMode.initialState);
-    const newDimensions = {
-      x: objectMode.initialState.width +
-          (isRightEdge(objectMode.mouseDownState.sbh) ? delta.x :
-           isLeftEdge(objectMode.mouseDownState.sbh) ? (- delta.x) :
-           0),
-      y: objectMode.initialState.height +
-          (isBottomEdge(objectMode.mouseDownState.sbh) ? delta.y :
-           isTopEdge(objectMode.mouseDownState.sbh) ? (- delta.y) :
-           0)
-    };
-    const mat = multiplyMatrices(
-      translateMat(-objectMode.initialState.x, -objectMode.initialState.y),
-      scaleMat(newDimensions.x / objectMode.initialState.width, newDimensions.y / objectMode.initialState.height)
-    );
-    const points_ = transformBezierPoints(
-      bezierState.points,
-      objectMode.initialState,
-      {
-        x: newDimensions.x / objectMode.initialState.width,
-        y: newDimensions.y / objectMode.initialState.height
-      },
-      tld
-    );
-    objectMode.mouseDownState.points_ = points_; // save for mouseup
-    refreshBezierPath({
-      isClosed: true,
-      points: points_,
-      $path: bezierState.$path
-    });
-    // 1. move to origin
-    // 2. resize
-    // 3. move back into position
-    // 4. apply translation
-   // objectMode.$g.setAttribute("transform", [
-   //   `matrix(${mat[0]} ${mat[3]} ${mat[1]} ${mat[4]} ${mat[2]} ${mat[5]})`
-   //   // `scale(${newDimensions.x / objectMode.initialState.width} ${newDimensions.y / objectMode.initialState.height})`
-   //   // `translate(${objectMode.initialState.x}, ${objectMode.initialState.y})`,
-   //   // `translate(${tld.x}, ${tld.y})`
-   // ].join(" "));
-    const br = vecAdd(tl, newDimensions);
-    selectionBoxSetPosition(objectMode.selectionBox, tl, br);
-  } else if (clickedHandle) {
-    const point = clickedHandle.point;
-    if (clickedHandle.side == HS.Right) {
-      point.hx = x - point.x;
-      point.hy = y - point.y;
-    } else {
-      if (point.h2x === null) {
-        point.hx = point.x - x;
-        point.hy = point.y - y;
-      } else {
-        point.h2x = x - point.x;
-        point.h2y = y - point.y;
-      }
-    }
-    onHandleChange(point);
-  } else if (clickedPoint) {
-    if (clickedPointWasMoved || computeDistance(evt, clickedPointStartingCoords) > MIN_MOVEMENT) {
-      bezierState.clickedPointWasMoved = true;
-      clickedPoint.x = x;
-      clickedPoint.y = y;
-      onHandleChange(clickedPoint);
-    }
-  } else if (isAddingPoint) {
-    const p = bezierState.$newPoint;
-    const pr = projectOnBezier(bezierState.points, { x, y });
-    p.setAttribute("cx", pr.projection.x);
-    p.setAttribute("cy", pr.projection.y);
-    p.setAttribute("fill", "red");
-  } else {
-  }
-}, true);
-
 function onHandleChange(p) {
   const { x, y, h2y, $hdl_line, $rgt_hdl, $lft_hdl, prev, next } = p;
   const { left, right } = handlePoints(p);
@@ -494,132 +618,6 @@ function hideAllHandles(parent) {
 function showAllHandles(parent) {
   parent.points.forEach(point => setHandleVisible(true, point));
 }
-
-canvas.addEventListener("mousedown", evt => {
-  const t = evt.target._Z_point;
-  const r = evt.target._Z_handle;
-  const v = evt.target._Z_selectionBoxFrame;
-  const s = evt.target._Z_selectionBoxHandle;
-  // const s = evt.target._Z_path;
-
-  const _clickedObject = objects.length < 1 ? null :
-    (function() {
-      const distances = objects.map(o => ({ obj: o, d: distanceFromBezier(o.points, { x: evt.x, y: evt.y }) }));
-      const closest = distances.reduce((a, b) => {
-        return a.d < b.d ? a : b;
-      });
-      return closest.d < HIT_PROXIMITY ? closest.obj : null;
-    })();
-
-  if (t) {
-    bezierState.clickedPoint = t;
-    bezierState.clickedPointWasMoved = false;
-    bezierState.clickedPointStartingCoords = { x: evt.x, y: evt.y };
-  } else if (v) {
-    objectMode.mouseDownState = {
-      x: evt.x,
-      y: evt.y,
-      sbh: null
-    };
-  } else if (s) {
-    objectMode.mouseDownState = {
-      x: evt.x,
-      y: evt.y,
-      sbh: s.sbh,
-      points_: null // cached value from mousemove reused in mouseup
-    };
-  } else if (r) {
-    const point = r.point;
-    if (evt.ctrlKey && point.h2x === null) {
-      point.h2x = - point.hx;
-      point.h2y = - point.hy;
-    }
-    bezierState.clickedHandle = r;
-  } else if (bezierState.isAddingPoint) {
-    const pr = projectOnBezier(bezierState.points, { x: evt.x, y: evt.y });
-    const curve = (function() {
-      const p = pr.segment;
-      const n = p.next;
-      return new Bezier(p.x, p.y, p.x + p.hx, p.y + p.hy, n.h2x === null ? n.x - n.hx : n.x + n.h2x, n.h2x === null ? n.y - n.hy : n.y + n.h2y, n.x, n.y);
-    })();
-    const split = curve.split(pr.projection.t);
-
-    // new point
-    const { x, y } = split.right.points[0];
-    const { x: hx, y: hy } = vecDiff(split.right.points[1], { x, y });
-    const { x: h2x, y: h2y } = vecDiff(split.left.points[2], { x, y });
-    const { x: prev_hx, y: prev_hy } = vecDiff(split.left.points[1], pr.segment);
-    const { x: next_h2x, y: next_h2y } = vecDiff(split.right.points[2], pr.segment.next);
-    const $lft_hdl = addPoint({ x: x + h2x, y: y + h2y });
-    const $rgt_hdl = addPoint({ x: x + hx, y: y + hy });
-    const $hdl_line = addLine({ x1: x + h2x, y1: y + h2y, x2: x + hx, y2: y + hy });
-    $hdl_line.setAttribute("d", `M ${x + h2x} ${y + h2y} L ${x} ${y} L ${x + hx} ${y + hy}`);
-    const $el = addPoint({ x, y });
-    $el.setAttribute("r", 4);
-    $el.setAttribute("fill", "blue");
-    const new_point = { x, y, hx, hy, h2x, h2y, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: pr.segment, next: pr.segment.next, parent: pr.segment.parent };
-    new_point.prev.next = new_point;
-    new_point.next.prev = new_point;
-
-    if (new_point.prev.h2x === null) {
-      // split the handles on prev
-      new_point.prev.h2x = - new_point.prev.hx;
-      new_point.prev.h2y = - new_point.prev.hy;
-    }
-    // update prev handles
-    new_point.prev.hx = prev_hx;
-    new_point.prev.hy = prev_hy;
-
-    new_point.next.h2x = next_h2x;
-    new_point.next.h2y = next_h2y;
-
-    onHandleChange(new_point.prev);
-    onHandleChange(new_point.next);
-
-    const i = new_point.parent.points.findIndex(x => x === pr.segment);
-    new_point.parent.points.splice(i + 1, 0, new_point);
-    refreshBezierPath(new_point.parent);
-
-    // TODO remove
-    const p = bezierState.$newPoint;
-    p.setAttribute("cx", -100);
-    p.setAttribute("cy", -100);
-  } else if (_clickedObject) {
-    clickedObject = _clickedObject;
-  } else if (bezierState.drawingBezier) {
-    const { x, y } = evt;
-    const { isPressed, points } = bezierState;
-
-    bezierState.isPressed = true;
-
-    const $lft_hdl = addPoint({ x: 0, y: 0 });
-    const $rgt_hdl = addPoint({ x: 0, y: 0 });
-    const $hdl_line = addLine({ x1: 0, y1: 0, x2: 0, y2: 0 }); // TODO initial position
-    const $el = addPoint({ x, y });
-    $el.setAttribute("r", 4);
-    const current = { x, y, hx: 0, hy: 0, h2x: null, h2y: null, $el, $lft_hdl, $rgt_hdl, $hdl_line, prev: points.length > 0 ? points[points.length - 1] : null, next: null, parent: bezierState }
-    $el._Z_point = current;
-    $lft_hdl._Z_handle = { point: current, side: HS.Left };
-    $rgt_hdl._Z_handle = { point: current, side: HS.Right };
-    if (points.length > 0) {
-      const prev = points[points.length - 1];
-      prev.next = current;
-      setHandleVisible(false, prev);
-    }
-    points.push(current);
-
-    if (points.length === 2) {
-      const prev = points[0];
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${prev.x} ${prev.y} L ${x} ${y}`);
-      path.setAttribute("stroke", "pink");
-      path.setAttribute("fill", "none");
-      zIndexLines.insertAdjacentElement('afterend', path);
-      path._Z_path = bezierState;
-      bezierState.$path = path;
-    }
-  }
-}, true);
 
 canvas.addEventListener("mouseover", evt => {
   //currentPoint.setAttribute("fill", "#ff0000");
