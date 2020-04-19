@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/fghibellini/svg-editor#readme",
   "dependencies": {
-    "bezier-js": "^2.6.1"
+    "bezier-js": "^2.6.1",
+    "chai": "^4.2.0",
+    "mocha": "^7.1.1"
   }
 }

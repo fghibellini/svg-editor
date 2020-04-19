@@ -6,6 +6,18 @@ const MIN_MOVEMENT = 3;
 const HIT_PROXIMITY = 5;
 const SQ_HDL_HW = 3; // SQUARE_HANDLE_HALF_WIDTH
 
+// Object Type
+const ObjectType = {
+  Ellipse: Symbol("<EllipseObject>"),
+  Bezier: Symbol("<BezierObject>")
+};
+
+// Tools
+const Tools = {
+  Elipse: Symbol("<ElipseTool>"),
+  Bezier: Symbol("<BezierTool>")
+};
+
 // Handle Side
 const HS = {
   Left: Symbol("<LeftHandle>"),
@@ -38,9 +50,12 @@ const canvas = document.getElementById("canvas");
 const zIndexHandles = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const zIndexHandleLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const zIndexLines = document.createElementNS("http://www.w3.org/2000/svg", "g");
-canvas.appendChild(zIndexLines);
-canvas.appendChild(zIndexHandleLines);
-canvas.appendChild(zIndexHandles);
+
+function appendZIndexHandles() {
+  canvas.appendChild(zIndexLines);
+  canvas.appendChild(zIndexHandleLines);
+  canvas.appendChild(zIndexHandles);
+}
 
 function onResize() {
   const height = window.innerHeight;
@@ -84,9 +99,12 @@ window.addEventListener("keydown", evt => {
 
 // editor state
 const objects = [];
+let selectedTool = Tools.Elipse;
 let mode = MODE.Objekt;
 let clickedObject = null;
+let activeObject = null;
 let bezierState = emptyBezierState();
+let elipseState = emptyElipseState();
 let objectMode = {
   selectionBox: null,
   $g: null,
@@ -94,6 +112,25 @@ let objectMode = {
   mouseDownState: null, // set on mousedown
   currentState: null // set on mousemove
 };
+
+function resetAllState() {
+  objects.splice(0, objects.length);
+  selectedTool = Tools.Elipse;
+  mode = MODE.Objekt;
+  clickedObject = null;
+  activeObject = null;
+  bezierState = emptyBezierState();
+  elipseState = emptyElipseState();
+  objectMode = {
+    selectionBox: null,
+    $g: null,
+    initialState: null, // set while switching to object mode
+    mouseDownState: null, // set on mousedown
+    currentState: null // set on mousemove
+  };
+  canvas.innerHTML = '';
+  init();
+}
 
 let $statusBox = newInfoBox();
 
@@ -104,15 +141,34 @@ function refreshStatusBox() {
   $statusBox.setAttribute("y", 20);
 }
 
-(function init() {
+function init() {
+  appendZIndexHandles();
   onResize();
   bezierState.drawingBezier = true;
-  setInterval(() => {
-    refreshStatusBox();
-  }, 50);
-})();
+}
 
-canvas.addEventListener("mousedown", evt => {
+init();
+
+// hacky
+setInterval(() => {
+  refreshStatusBox();
+}, 50);
+
+function distanceFromObject(point, object) {
+  if (object.type === ObjectType.Bezier) {
+    return distanceFromBezier(object.points, point);
+  } else if (object.type === ObjectType.Ellipse) {
+    return distanceFromEllipse(object, point);
+  } else {
+    throw Error("Unexpected ObjectType");
+  }
+}
+
+canvas.addEventListener("mousedown", mouseDown, true);
+canvas.addEventListener("mousemove", mouseMove, true);
+canvas.addEventListener("mouseup", mouseUp, true);
+
+function mouseDown(evt) {
   const t = evt.target._Z_point;
   const r = evt.target._Z_handle;
   const v = evt.target._Z_selectionBoxFrame;
@@ -121,10 +177,12 @@ canvas.addEventListener("mousedown", evt => {
 
   const _clickedObject = objects.length < 1 ? null :
     (function() {
-      const distances = objects.map(o => ({ obj: o, d: distanceFromBezier(o.points, { x: evt.x, y: evt.y }) }));
+      const distances = objects.map(o => ({ obj: o, d: distanceFromObject(evt, o) }));
       const closest = distances.reduce((a, b) => {
         return a.d < b.d ? a : b;
       });
+      console.log(`closest object (${closest.d}):`);
+      //console.log(closest.obj);
       return closest.d < HIT_PROXIMITY ? closest.obj : null;
     })();
 
@@ -142,8 +200,7 @@ canvas.addEventListener("mousedown", evt => {
     objectMode.mouseDownState = {
       x: evt.x,
       y: evt.y,
-      sbh: s.sbh,
-      points_: null // cached value from mousemove reused in mouseup
+      sbh: s.sbh
     };
   } else if (r) {
     const point = r.point;
@@ -152,6 +209,14 @@ canvas.addEventListener("mousedown", evt => {
       point.h2y = - point.hy;
     }
     bezierState.clickedHandle = r;
+  } else if (selectedTool === Tools.Elipse) {
+    elipseState.$element = newEllipse();
+    elipseState.center = { x: evt.x, y: evt.y };
+    elipseState.$element.setAttribute("cx", elipseState.center.x);
+    elipseState.$element.setAttribute("cy", elipseState.center.y);
+    elipseState.$element.setAttribute("rx", 0);
+    elipseState.$element.setAttribute("ry", 0);
+    elipseState.isPressed = true;
   } else if (bezierState.isAddingPoint) {
     const pr = projectOnBezier(bezierState.points, { x: evt.x, y: evt.y });
     const curve = (function() {
@@ -236,12 +301,23 @@ canvas.addEventListener("mousedown", evt => {
       bezierState.$path = path;
     }
   }
-}, true);
+}
 
-canvas.addEventListener("mousemove", evt => {
+function mouseMove(evt) {
   const { x, y } = evt;
   const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedPointStartingCoords, clickedHandle, isAddingPoint } = bezierState;
-  if (isPressed) {
+  if (selectedTool === Tools.Elipse && elipseState.isPressed) {
+    elipseState.isCircle = evt.shiftKey;
+    if (elipseState.isCircle) {
+      const r = computeDistance(evt, elipseState.center);
+      elipseState.$element.setAttribute("rx", r);
+      elipseState.$element.setAttribute("ry", r);
+    } else {
+      const d = vecDiff(evt, elipseState.center);
+      elipseState.$element.setAttribute("rx", abs(d.x));
+      elipseState.$element.setAttribute("ry", abs(d.y));
+    }
+  } else if (isPressed) {
     const current = points[points.length - 1];
     current.hx = x - current.x;
     current.hy = y - current.y;
@@ -292,7 +368,7 @@ canvas.addEventListener("mousemove", evt => {
       },
       tld
     );
-    objectMode.mouseDownState.points_ = points_; // save for mouseup
+    activeObject.points_ = points_; // save for mouseup
     refreshBezierPath({
       isClosed: true,
       points: points_,
@@ -340,36 +416,56 @@ canvas.addEventListener("mousemove", evt => {
     p.setAttribute("fill", "red");
   } else {
   }
-}, true);
+}
 
-canvas.addEventListener("mouseup", evt => {
+function mouseUp(evt) {
   const { isPressed, points, clickedPoint, clickedPointWasMoved, clickedHandle } = bezierState;
-  if (isPressed) {
+  if (selectedTool === Tools.Elipse && elipseState.isPressed) {
+    selectedTool = 42;
+    elipseState.isCircle = evt.shiftKey;
+    if (elipseState.isCircle) {
+      const r = computeDistance(evt, elipseState.center);
+      elipseState.rx = r;
+      elipseState.ry = r;
+    } else {
+      const d = vecDiff(evt, elipseState.center);
+      elipseState.rx = abs(d.x);
+      elipseState.ry = abs(d.y);
+    }
+    elipseState.$element.setAttribute("rx", elipseState.rx);
+    elipseState.$element.setAttribute("ry", elipseState.ry);
+
+    elipseState.isPressed = false;
+    objects.push(elipseState);
+    elipseState = emptyElipseState();
+  } else if (isPressed) {
     const current = points[points.length - 1];
     bezierState.isPressed = false;
   } else if (objectMode.mouseDownState) {
     if (objectMode.mouseDownState.sbh !== null) { // RESIZE
-      if (objectMode.mouseDownState.points_) {
+      if (activeObject.points_) {
         // apply the transformation
-        objectMode.mouseDownState.points_.forEach((p, i) => {
+        activeObject.points_.forEach((p, i) => {
           const o = bezierState.points[i];
           Object.assign(o, p); // assign new coords while maintaining the references to SVG nodes
         });
         bezierState.points.forEach(onHandleChange);
-        objectMode.mouseDownState.points_ = null;
+        activeObject.points_ = null;
       }
     } else { // MOVE
-      ;
+      const delta = vecDiff(evt, objectMode.mouseDownState);
+      objectMode.initialState.x += delta.x;
+      objectMode.initialState.y += delta.y;
     }
     objectMode.mouseDownState = null;
   } else if (clickedObject) {
-    bezierState = clickedObject;
+    activeObject = clickedObject;
+    clickedObject = null;
     if (mode === MODE.Objekt) {
       switchToObjektMode();
     } else {
       showAllHandles(bezierState);
     }
-    clickedObject = null;
   } else if (clickedHandle) {
     bezierState.clickedHandle = null;
   } else if (clickedPoint && clickedPointWasMoved) {
@@ -379,19 +475,19 @@ canvas.addEventListener("mouseup", evt => {
   } else {
     // TODO highlight handles ?
   }
-}, true);
+}
 
 function switchToObjektMode() {
 
   //cleanup
-  {
-    hideAllHandles(bezierState);
-  }
+  //{ TODO
+  //  hideAllHandles(bezierState);
+  //}
 
   mode = MODE.Objekt;
 
   objectMode.selectionBox = newSelectionBox();
-  const bbox = bezierBoundingBox(bezierState.points);
+  const bbox = objectBoundingBox(activeObject);
   selectionBoxSetPosition(objectMode.selectionBox, { x: bbox.x.min, y: bbox.y.min }, { x: bbox.x.max, y: bbox.y.max });
   objectMode.initialState = {
     x: bbox.x.min,
@@ -403,7 +499,7 @@ function switchToObjektMode() {
   objectMode.$g = document.createElementNS("http://www.w3.org/2000/svg", "g");
   objectMode.$g.setAttribute("class", "transform-wrapper");
   zIndexHandleLines.insertAdjacentElement('afterend', objectMode.$g);
-  objectMode.$g.appendChild(bezierState.$path);
+  objectMode.$g.appendChild(objectSVGElement(activeObject));
 }
 
 function switchToEditMode() {
@@ -415,8 +511,26 @@ function switchToEditMode() {
   showAllHandles(bezierState);
 }
 
+function emptyElipseState() {
+  return {
+    type: ObjectType.Ellipse,
+    isPressed: false,
+    center: null,
+    isCircle: false,
+    rx: 0,
+    ry: 0,
+    $element: null
+
+    //clickedPoint: null,
+    //clickedPointStartingCoords: null,
+    //clickedPointWasMoved: false,
+    //clickedHandle: null,
+  }
+}
+
 function emptyBezierState() {
   return {
+    type: ObjectType.Bezier,
     drawingBezier: false, // is currently drawing a bezier curve
     isPressed: false, // ?
     points: [],
@@ -427,7 +541,9 @@ function emptyBezierState() {
     clickedPointWasMoved: false,
     clickedHandle: null,
     isAddingPoint: false,
-    $newPoint: null
+    $newPoint: null,
+    // cached values during transformations
+    points_: null
   }
 }
 
@@ -488,6 +604,39 @@ function projectOnBezier(points, t) {
   });
 }
 
+function objectSVGElement(object) {
+  if (object.type === ObjectType.Bezier) {
+    return object.$path;
+  } else if (object.type === ObjectType.Ellipse) {
+    return object.$element;
+  } else {
+    throw Error("Unexpected ObjectType");
+  }
+}
+
+function objectBoundingBox(object) {
+  if (object.type === ObjectType.Bezier) {
+    return bezierBoundingBox(object.points);
+  } else if (object.type === ObjectType.Ellipse) {
+    return ellipseBoundingBox(object);
+  } else {
+    throw Error("Unexpected ObjectType");
+  }
+}
+
+function ellipseBoundingBox({ center, rx, ry }) {
+  return {
+    x: {
+      min: center.x - rx,
+      max: center.x + rx
+    },
+    y: {
+      min: center.y - ry,
+      max: center.y + ry
+    }
+  };
+}
+
 function bezierBoundingBox(points) {
   const ps = points.map(p => {
     const n = p.next;
@@ -508,6 +657,20 @@ function bezierBoundingBox(points) {
       }
     }
   })
+}
+
+function parametricEllipse(object, t) {
+  return { x: object.rx * cos(t), y: object.ry * sin(t) }
+}
+
+// This does not return the actual euclidian distance of the point from the ellipse.
+// Instead it returns how many pixels bigger the ellipse would have to be in order
+// for the point to be a part of it.
+// (number of pixels on the x axis as we actually compute the scaling factor and apply it to rx)
+function distanceFromEllipse(object, point) {
+  const { x, y } = vecDiff(point, object.center);
+  const d2 =  ((x * x) / (object.rx * object.rx)) + ((y * y) / (object.ry * object.ry));
+  return sqrt(object.rx * object.rx * d2) - object.rx;
 }
 
 function distanceFromBezier(points, t) {
@@ -759,5 +922,14 @@ function newInfoBox() {
   const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
   zIndexHandleLines.insertAdjacentElement('afterend', text);
   return text;
+}
+
+function newEllipse() {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+  el.setAttribute("stroke", "black");
+  el.setAttribute("fill", "none");
+  zIndexHandleLines.insertAdjacentElement('afterend', el);
+  el._Z_ellipse = {};
+  return el;
 }
 

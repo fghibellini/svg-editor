@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf8">
+    <title>SVG editor</title>
+    <link rel="stylesheet" type="text/css" href="./main.css">
+    <link rel="stylesheet" href="./node_modules/mocha/mocha.css">
+    <style>
+      #canvas {
+        position: absolute;
+      }
+    </style>
+  </head>
+  <body>
+    <svg xmlns="http://www.w3.org/2000/svg" id="canvas"></svg>
+    <div id="mocha"></div>
+    <script src="./math.js"></script>
+    <script src="./node_modules/bezier-js/bezier.js"></script>
+    <script src="./main.js"></script>
+    <!-- testing specific -->
+    <script src="./node_modules/mocha/mocha.js"></script>
+    <script src="./node_modules/chai/chai.js"></script>
+    <script>mocha.setup('bdd')</script>
+    <script src="./tests.js"></script>
+    <script>mocha.run()</script>
+  </body>
+</html>

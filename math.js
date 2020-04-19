@@ -1,4 +1,26 @@
 
+abs = Math.abs;
+min = Math.min;
+max = Math.max;
+cos = Math.cos;
+sin = Math.sin;
+pow = Math.pow;
+hypot = Math.hypot;
+asin = Math.asin;
+sqrt = Math.sqrt;
+
+function pow3(x) {
+  return x * x * x;
+}
+
+function copysign(a, b) {
+  if ((a <= 0 && b <= 0) || (a >= 0 && b >= 0)) {
+    return a;
+  } else {
+    return -1 * a;
+  }
+}
+
 function minimum(xs) {
   return xs.reduce((a, b) => Math.min(a, b));
 }
