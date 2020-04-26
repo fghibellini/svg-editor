@@ -454,8 +454,19 @@ function mouseUp(evt) {
       }
     } else { // MOVE
       const delta = vecDiff(evt, objectMode.mouseDownState);
-      objectMode.initialState.x += delta.x;
-      objectMode.initialState.y += delta.y;
+
+      // 1. apply transformation to object
+      activeObject.center = vecAdd(activeObject.center, delta);
+      activeObject.$element.setAttribute("cx", activeObject.center.x);
+      activeObject.$element.setAttribute("cy", activeObject.center.y);
+      // 2. reset g transformation
+      objectMode.$g.setAttribute("transform", `translate(0, 0)`);
+      //console.log("initialState:")
+      //console.log(objectMode.initialState)
+      //console.log("delta:")
+      //console.log(delta)
+      //objectMode.initialState.x += delta.x;
+      //objectMode.initialState.y += delta.y;
     }
     objectMode.mouseDownState = null;
   } else if (clickedObject) {
