@@ -461,12 +461,9 @@ function mouseUp(evt) {
       activeObject.$element.setAttribute("cy", activeObject.center.y);
       // 2. reset g transformation
       objectMode.$g.setAttribute("transform", `translate(0, 0)`);
-      //console.log("initialState:")
-      //console.log(objectMode.initialState)
-      //console.log("delta:")
-      //console.log(delta)
-      //objectMode.initialState.x += delta.x;
-      //objectMode.initialState.y += delta.y;
+      // 3. update transformation accumulator
+      objectMode.initialState.x += delta.x;
+      objectMode.initialState.y += delta.y;
     }
     objectMode.mouseDownState = null;
   } else if (clickedObject) {
