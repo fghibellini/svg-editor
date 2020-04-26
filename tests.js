@@ -53,7 +53,7 @@ describe("basic tests", () => {
     mouseUp({ target: {}, x: 300, y: 190 });
     assert.equal(frameSVGElement.getAttribute("x"), 300);
     assert.equal(svgEllipse.getAttribute("cx"), 350);
-    assert.equal(svgG.getAttribute("transform"), `translate(0, 0)`);
+    assert.equal(svgG.getAttribute("transform"), null);
     //assert.equal(objectMode.initialState.x, 350); // the top-left corner of the bounding box has moved to [300, 180]
     //assert.equal(objectMode.initialState.y, 180); // the top-left corner of the bounding box has moved to [300, 180]
     //// second drag 50 to right
@@ -87,7 +87,88 @@ describe("basic tests", () => {
     // asserts
     assert.equal(frameSVGElement.getAttribute("x"), 350);
     assert.equal(svgEllipse.getAttribute("cx"), 400);
-    assert.equal(svgG.getAttribute("transform"), `translate(0, 0)`);
+    assert.equal(svgG.getAttribute("transform"), null);
+  })
+
+  it("should resize an ellipse (bottom-right handle, increase)", () => {
+    // create ellipse
+    // center: [300, 200]
+    // top-left corner: [250, 180]
+    // bottom-right corner: [350, 220]
+    mouseDown({ target: {}, x: 300, y: 200 });
+    mouseMove({ target: {}, x: 350, y: 220 });
+    mouseUp({ target: {}, x: 350, y: 220 });
+    // simulate click on object
+    activeObject = objects[0];
+    switchToObjektMode();
+    const svgEllipse = activeObject.$element;
+    const svgG = objectMode.$g;
+    // drag box by bottom-right handle (50,50)
+    const brHandleSvg = objectMode.selectionBox.$br;
+    mouseDown({ target: brHandleSvg, x: 250, y: 190 });
+    // mouse move
+    mouseMove({ target: {}, x: 300, y: 240 });
+    assert.equal(brHandleSvg.getAttribute("x"), 400 - SQ_HDL_HW);
+    assert.equal(brHandleSvg.getAttribute("y"), 270 - SQ_HDL_HW);
+    assert.equal(svgG.getAttribute("transform"), null);
+    assert.equal(svgEllipse.getAttribute("cx"), 325);
+    // mouse up
+    mouseUp({ target: {}, x: 300, y: 240 });
+    assert.equal(brHandleSvg.getAttribute("x"), 400 - SQ_HDL_HW);
+    assert.equal(brHandleSvg.getAttribute("y"), 270 - SQ_HDL_HW);
+    assert.equal(svgG.getAttribute("transform"), null);
+    assert.equal(svgEllipse.getAttribute("cx"), 325);
+    //assert.equal(frameSVGElement.getAttribute("x"), 300);
+    //assert.equal(svgEllipse.getAttribute("cx"), 350);
+    //assert.equal(svgG.getAttribute("transform"), `translate(0, 0)`);
+    //assert.equal(objectMode.initialState.x, 350); // the top-left corner of the bounding box has moved to [300, 180]
+    //assert.equal(objectMode.initialState.y, 180); // the top-left corner of the bounding box has moved to [300, 180]
+    //// second drag 50 to right
+    //mouseDown({ target: frameSVGElement, x: 300, y: 190 });
+    //mouseMove({ target: {}, x: 350, y: 190 });
+    //mouseUp({ target: {}, x: 350, y: 190 });
+    // asserts
+  })
+
+  it("should resize an ellipse (top-right handle, increase)", () => {
+    // create ellipse
+    // center: [300, 200]
+    // top-left corner: [250, 180]
+    // bottom-right corner: [350, 220]
+    mouseDown({ target: {}, x: 300, y: 200 });
+    mouseMove({ target: {}, x: 350, y: 220 });
+    mouseUp({ target: {}, x: 350, y: 220 });
+    // simulate click on object
+    activeObject = objects[0];
+    switchToObjektMode();
+    const svgEllipse = activeObject.$element;
+    const svgG = objectMode.$g;
+    // drag box by top-right handle (50,-50)
+    const trHandleSvg = objectMode.selectionBox.$tr;
+    mouseDown({ target: trHandleSvg, x: 250, y: 190 });
+    // mouse move
+    mouseMove({ target: {}, x: 300, y: 140 });
+    assert.equal(trHandleSvg.getAttribute("x"), 400 - SQ_HDL_HW);
+    assert.equal(trHandleSvg.getAttribute("y"), 130 - SQ_HDL_HW);
+    assert.equal(svgG.getAttribute("transform"), null);
+    assert.equal(svgEllipse.getAttribute("cy"), 175);
+    // mouse up
+    mouseUp({ target: {}, x: 300, y: 140 });
+    assert.equal(trHandleSvg.getAttribute("x"), 400 - SQ_HDL_HW);
+    assert.equal(trHandleSvg.getAttribute("y"), 130 - SQ_HDL_HW);
+    assert.equal(svgG.getAttribute("transform"), null);
+    assert.equal(svgEllipse.getAttribute("cy"), 175);
+
+    //assert.equal(frameSVGElement.getAttribute("x"), 300);
+    //assert.equal(svgEllipse.getAttribute("cx"), 350);
+    //assert.equal(svgG.getAttribute("transform"), `translate(0, 0)`);
+    //assert.equal(objectMode.initialState.x, 350); // the top-left corner of the bounding box has moved to [300, 180]
+    //assert.equal(objectMode.initialState.y, 180); // the top-left corner of the bounding box has moved to [300, 180]
+    //// second drag 50 to right
+    //mouseDown({ target: frameSVGElement, x: 300, y: 190 });
+    //mouseMove({ target: {}, x: 350, y: 190 });
+    //mouseUp({ target: {}, x: 350, y: 190 });
+    // asserts
   })
 
 })

@@ -359,21 +359,31 @@ function mouseMove(evt) {
       translateMat(-objectMode.initialState.x, -objectMode.initialState.y),
       scaleMat(newDimensions.x / objectMode.initialState.width, newDimensions.y / objectMode.initialState.height)
     );
-    const points_ = transformBezierPoints(
-      bezierState.points,
-      objectMode.initialState,
-      {
-        x: newDimensions.x / objectMode.initialState.width,
-        y: newDimensions.y / objectMode.initialState.height
-      },
-      tld
-    );
-    activeObject.points_ = points_; // save for mouseup
-    refreshBezierPath({
-      isClosed: true,
-      points: points_,
-      $path: bezierState.$path
-    });
+    if (false) {
+      // bezier
+      const points_ = transformBezierPoints(
+        bezierState.points,
+        objectMode.initialState,
+        {
+          x: newDimensions.x / objectMode.initialState.width,
+          y: newDimensions.y / objectMode.initialState.height
+        },
+        tld
+      );
+      activeObject.points_ = points_; // save for mouseup
+      refreshBezierPath({
+        isClosed: true,
+        points: points_,
+        $path: bezierState.$path
+      });
+    } else {
+      // ellipse
+      //activeObject.center = { x: };
+      activeObject.$element.setAttribute("cx", activeObject.center.x + delta.x / 2);
+      activeObject.$element.setAttribute("cy", activeObject.center.y + delta.y / 2);
+      activeObject.$element.setAttribute("rx", activeObject.rx + horizontalSignum(objectMode.mouseDownState.sbh) * delta.x / 2);
+      activeObject.$element.setAttribute("ry", activeObject.ry + verticalSignum(objectMode.mouseDownState.sbh) * delta.y / 2);
+    }
     // 1. move to origin
     // 2. resize
     // 3. move back into position
@@ -451,6 +461,8 @@ function mouseUp(evt) {
         });
         bezierState.points.forEach(onHandleChange);
         activeObject.points_ = null;
+      } else {
+        // ellipse
       }
     } else { // MOVE
       const delta = vecDiff(evt, objectMode.mouseDownState);
@@ -460,7 +472,7 @@ function mouseUp(evt) {
       activeObject.$element.setAttribute("cx", activeObject.center.x);
       activeObject.$element.setAttribute("cy", activeObject.center.y);
       // 2. reset g transformation
-      objectMode.$g.setAttribute("transform", `translate(0, 0)`);
+      objectMode.$g.removeAttribute("transform");
       // 3. update transformation accumulator
       objectMode.initialState.x += delta.x;
       objectMode.initialState.y += delta.y;
@@ -911,6 +923,14 @@ function isBottomEdge(sbh) {
        sbh === SBH.BL
     || sbh === SBH.B
     || sbh === SBH.BR);
+}
+
+function verticalSignum(sbh) {
+  return isTopEdge(sbh) ? -1 : isBottomEdge ? 1 : 0;
+}
+
+function horizontalSignum(sbh) {
+  return isLeftEdge(sbh) ? -1 : isRightEdge ? 1 : 0;
 }
 
 function newSelectionBoxPoint(sbh) {
