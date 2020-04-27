@@ -74,7 +74,9 @@ window.addEventListener("contextmenu", evt => {
   evt.preventDefault();
 });
 
-window.addEventListener("keydown", evt => {
+window.addEventListener("keydown", keyDown, true);
+
+function keyDown(evt) {
   if (evt.key === 'c') {
     closeCurve();
   } else if (evt.key === 'h') {
@@ -95,7 +97,7 @@ window.addEventListener("keydown", evt => {
       // refreshStatusBox();
     }
   }
-}, true);
+}
 
 // editor state
 const objects = [];
@@ -115,7 +117,7 @@ let objectMode = {
 
 function resetAllState() {
   objects.splice(0, objects.length);
-  selectedTool = Tools.Elipse;
+  selectedTool = Tools.Bezier;
   mode = MODE.Objekt;
   clickedObject = null;
   activeObject = null;

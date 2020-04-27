@@ -11,6 +11,7 @@ describe("basic tests", () => {
   })
 
   it("should draw ellipse", () => {
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 100, y: 100 });
     mouseMove({ target: {}, x: 200, y: 150 });
     mouseUp({ target: {}, x: 200, y: 150 });
@@ -20,6 +21,7 @@ describe("basic tests", () => {
   })
 
   it("should draw a circle", () => {
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 100, y: 100 });
     mouseMove({ target: {}, x: 200, y: 100 });
     mouseUp({ target: {}, x: 200, y: 100, shiftKey: true });
@@ -33,6 +35,7 @@ describe("basic tests", () => {
     // create ellipse
     // center: [300, 200]
     // top-left corner: [250, 180]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -67,6 +70,7 @@ describe("basic tests", () => {
     // create ellipse
     // center: [300, 200]
     // top-left corner: [250, 180]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -95,6 +99,7 @@ describe("basic tests", () => {
     // center: [300, 200]
     // top-left corner: [250, 180]
     // bottom-right corner: [350, 220]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -138,6 +143,7 @@ describe("basic tests", () => {
     // center: [300, 200]
     // top-left corner: [250, 180]
     // bottom-right corner: [350, 220]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -182,6 +188,7 @@ describe("basic tests", () => {
     // center: [300, 200]
     // top-left corner: [250, 180]
     // bottom-right corner: [350, 220]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -226,6 +233,7 @@ describe("basic tests", () => {
     // center: [300, 200]
     // top-left corner: [250, 180]
     // bottom-right corner: [350, 220]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -273,6 +281,7 @@ describe("basic tests", () => {
     // center: [300, 200]
     // top-left corner: [250, 180]
     // bottom-right corner: [350, 220]
+    selectedTool = Tools.Elipse;
     mouseDown({ target: {}, x: 300, y: 200 });
     mouseMove({ target: {}, x: 350, y: 220 });
     mouseUp({ target: {}, x: 350, y: 220 });
@@ -316,6 +325,71 @@ describe("basic tests", () => {
     //mouseMove({ target: {}, x: 350, y: 190 });
     //mouseUp({ target: {}, x: 350, y: 190 });
     // asserts
+  })
+
+  it("should draw a bezier curve point", () => {
+    selectedTool = Tools.Bezier;
+    mouseDown({ target: {}, x: 100, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 150 });
+    mouseUp({ target: {}, x: 200, y: 150 });
+    assert.lengthOf(bezierState.points, 1);
+    assert.equal(bezierState.points[0].x, 100);
+    assert.equal(bezierState.points[0].y, 100);
+    assert.equal(bezierState.points[0].hx, 100);
+    assert.equal(bezierState.points[0].hy, 50);
+  })
+
+  it("should add a second point to a bezier curve", () => {
+    selectedTool = Tools.Bezier;
+    // point 1
+    mouseDown({ target: {}, x: 100, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 150 });
+    mouseUp({ target: {}, x: 200, y: 150 });
+    // point 2
+    mouseDown({ target: {}, x: 200, y: 100 });
+    mouseMove({ target: {}, x: 300, y: 150 });
+    mouseUp({ target: {}, x: 300, y: 150 });
+
+    assert.lengthOf(bezierState.points, 2);
+
+    assert.equal(bezierState.points[0].x, 100);
+    assert.equal(bezierState.points[0].y, 100);
+    assert.equal(bezierState.points[0].hx, 100);
+    assert.equal(bezierState.points[0].hy, 50);
+
+    assert.equal(bezierState.points[1].x, 200);
+    assert.equal(bezierState.points[1].y, 100);
+    assert.equal(bezierState.points[1].hx, 100);
+    assert.equal(bezierState.points[1].hy, 50);
+  })
+
+  it("should close a bezier curve", () => {
+    selectedTool = Tools.Bezier;
+    // point 1
+    mouseDown({ target: {}, x: 100, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 150 });
+    mouseUp({ target: {}, x: 200, y: 150 });
+    // point 2
+    mouseDown({ target: {}, x: 200, y: 100 });
+    mouseMove({ target: {}, x: 300, y: 150 });
+    mouseUp({ target: {}, x: 300, y: 150 });
+
+    keyDown({ key: 'c' });
+
+    assert.lengthOf(bezierState.points, 2);
+
+    assert.equal(bezierState.points[0].x, 100);
+    assert.equal(bezierState.points[0].y, 100);
+    assert.equal(bezierState.points[0].hx, 100);
+    assert.equal(bezierState.points[0].hy, 50);
+
+    assert.equal(bezierState.points[1].x, 200);
+    assert.equal(bezierState.points[1].y, 100);
+    assert.equal(bezierState.points[1].hx, 100);
+    assert.equal(bezierState.points[1].hy, 50);
+
+    assert.equal(bezierState.points[1].hy, 50);
+    assert.isTrue(bezierState.isClosed);
   })
 
 })
