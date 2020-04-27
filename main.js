@@ -379,10 +379,16 @@ function mouseMove(evt) {
     } else {
       // ellipse
       //activeObject.center = { x: };
-      activeObject.$element.setAttribute("cx", activeObject.center.x + delta.x / 2);
-      activeObject.$element.setAttribute("cy", activeObject.center.y + delta.y / 2);
-      activeObject.$element.setAttribute("rx", activeObject.rx + horizontalSignum(objectMode.mouseDownState.sbh) * delta.x / 2);
-      activeObject.$element.setAttribute("ry", activeObject.ry + verticalSignum(objectMode.mouseDownState.sbh) * delta.y / 2);
+      const hs = horizontalSignum(objectMode.mouseDownState.sbh);
+      const vs = verticalSignum(objectMode.mouseDownState.sbh);
+      console.log(objectMode.mouseDownState.sbh);
+      console.log(`vs: ${vs}`);
+      console.log(`hs: ${hs}`);
+      console.log(`delta: ${JSON.stringify(delta)}`);
+      activeObject.$element.setAttribute("cx", activeObject.center.x + abs(hs) * delta.x / 2);
+      activeObject.$element.setAttribute("cy", activeObject.center.y + abs(vs) * delta.y / 2);
+      activeObject.$element.setAttribute("rx", activeObject.rx + hs * delta.x / 2);
+      activeObject.$element.setAttribute("ry", activeObject.ry + vs * delta.y / 2);
     }
     // 1. move to origin
     // 2. resize
@@ -926,11 +932,11 @@ function isBottomEdge(sbh) {
 }
 
 function verticalSignum(sbh) {
-  return isTopEdge(sbh) ? -1 : isBottomEdge ? 1 : 0;
+  return isTopEdge(sbh) ? -1 : isBottomEdge(sbh) ? 1 : 0;
 }
 
 function horizontalSignum(sbh) {
-  return isLeftEdge(sbh) ? -1 : isRightEdge ? 1 : 0;
+  return isLeftEdge(sbh) ? -1 : isRightEdge(sbh) ? 1 : 0;
 }
 
 function newSelectionBoxPoint(sbh) {
