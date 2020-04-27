@@ -361,7 +361,7 @@ function mouseMove(evt) {
       translateMat(-objectMode.initialState.x, -objectMode.initialState.y),
       scaleMat(newDimensions.x / objectMode.initialState.width, newDimensions.y / objectMode.initialState.height)
     );
-    if (false) {
+    if (activeObject.type === ObjectType.Bezier) {
       // bezier
       const points_ = transformBezierPoints(
         bezierState.points,
@@ -470,6 +470,12 @@ function mouseUp(evt) {
         });
         bezierState.points.forEach(onHandleChange);
         activeObject.points_ = null;
+
+        //objectMode.initialState.x = activeObject.center.x - activeObject.rx;
+        //objectMode.initialState.y = activeObject.center.y - activeObject.ry;
+        objectMode.initialState.width = objectMode.initialState.width + delta.x;
+        objectMode.initialState.height = objectMode.initialState.height + delta.y;
+        //objectMode.initialState.height = 2 * activeObject.ry;
       } else {
         // ellipse
         console.log("ELLIPSE!!!!");
