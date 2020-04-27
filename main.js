@@ -459,6 +459,7 @@ function mouseUp(evt) {
     bezierState.isPressed = false;
   } else if (objectMode.mouseDownState) {
     if (objectMode.mouseDownState.sbh !== null) { // RESIZE
+      const delta = vecDiff(evt, objectMode.mouseDownState);
       if (activeObject.points_) {
         // apply the transformation
         activeObject.points_.forEach((p, i) => {
@@ -469,6 +470,20 @@ function mouseUp(evt) {
         activeObject.points_ = null;
       } else {
         // ellipse
+        console.log("ELLIPSE!!!!");
+        const hs = horizontalSignum(objectMode.mouseDownState.sbh);
+        const vs = verticalSignum(objectMode.mouseDownState.sbh);
+        activeObject.center = {
+          x: activeObject.center.x + abs(hs) * delta.x / 2,
+          y: activeObject.center.y + abs(vs) * delta.y / 2
+        };
+        activeObject.rx = activeObject.rx + hs * delta.x / 2; 
+        activeObject.ry = activeObject.ry + vs * delta.y / 2; 
+
+        objectMode.initialState.x = activeObject.center.x - activeObject.rx;
+        objectMode.initialState.y = activeObject.center.y - activeObject.ry;
+        objectMode.initialState.width = 2 * activeObject.rx;
+        objectMode.initialState.height = 2 * activeObject.ry;
       }
     } else { // MOVE
       const delta = vecDiff(evt, objectMode.mouseDownState);

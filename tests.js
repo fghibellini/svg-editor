@@ -268,4 +268,54 @@ describe("basic tests", () => {
     // asserts
   })
 
+  it("consecutive resizes should compose", () => {
+    // create ellipse
+    // center: [300, 200]
+    // top-left corner: [250, 180]
+    // bottom-right corner: [350, 220]
+    mouseDown({ target: {}, x: 300, y: 200 });
+    mouseMove({ target: {}, x: 350, y: 220 });
+    mouseUp({ target: {}, x: 350, y: 220 });
+    // simulate click on object
+    activeObject = objects[0];
+    switchToObjektMode();
+    const svgEllipse = activeObject.$element;
+    const svgG = objectMode.$g;
+
+    const lHandleSvg = objectMode.selectionBox.$l;
+
+    // drag box by left handle (-50,-50)
+    mouseDown({ target: lHandleSvg, x: 250, y: 190 });
+    // mouse move
+    mouseMove({ target: {}, x: 200, y: 140 });
+    // mouse up
+    mouseUp({ target: {}, x: 200, y: 140 });
+
+    // drag box by left handle (-50,-50)
+    mouseDown({ target: lHandleSvg, x: 200, y: 140 });
+    // mouse move
+    mouseMove({ target: {}, x: 150, y: 90 });
+    // mouse up
+    mouseUp({ target: {}, x: 150, y: 90 });
+
+    assert.equal(lHandleSvg.getAttribute("x"), 150 - SQ_HDL_HW);
+    assert.equal(lHandleSvg.getAttribute("y"), 200 - SQ_HDL_HW);
+    assert.equal(svgG.getAttribute("transform"), null);
+    assert.equal(svgEllipse.getAttribute("cx"), 250);
+    assert.equal(svgEllipse.getAttribute("cy"), 200);
+    assert.equal(svgEllipse.getAttribute("rx"), 100);
+    assert.equal(svgEllipse.getAttribute("ry"), 20);
+
+    //assert.equal(frameSVGElement.getAttribute("x"), 300);
+    //assert.equal(svgEllipse.getAttribute("cx"), 350);
+    //assert.equal(svgG.getAttribute("transform"), `translate(0, 0)`);
+    //assert.equal(objectMode.initialState.x, 350); // the top-left corner of the bounding box has moved to [300, 180]
+    //assert.equal(objectMode.initialState.y, 180); // the top-left corner of the bounding box has moved to [300, 180]
+    //// second drag 50 to right
+    //mouseDown({ target: frameSVGElement, x: 300, y: 190 });
+    //mouseMove({ target: {}, x: 350, y: 190 });
+    //mouseUp({ target: {}, x: 350, y: 190 });
+    // asserts
+  })
+
 })
