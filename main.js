@@ -501,9 +501,16 @@ function mouseUp(evt) {
       const delta = vecDiff(evt, objectMode.mouseDownState);
 
       // 1. apply transformation to object
-      activeObject.center = vecAdd(activeObject.center, delta);
-      activeObject.$element.setAttribute("cx", activeObject.center.x);
-      activeObject.$element.setAttribute("cy", activeObject.center.y);
+      if (activeObject.type === ObjectType.Bezier) {
+        activeObject.points.forEach(p => {
+          return Object.assign(p, vecAdd(p, delta)); // need to change only x & y (keep handle values & refs to svg elems)
+        });
+        refreshBezierPath(activeObject);
+      } else {
+        activeObject.center = vecAdd(activeObject.center, delta);
+        activeObject.$element.setAttribute("cx", activeObject.center.x);
+        activeObject.$element.setAttribute("cy", activeObject.center.y);
+      }
       // 2. reset g transformation
       objectMode.$g.removeAttribute("transform");
       // 3. update transformation accumulator
