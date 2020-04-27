@@ -376,6 +376,8 @@ describe("basic tests", () => {
 
     keyDown({ key: 'c' });
 
+    assert.lengthOf(objects, 1);
+
     assert.lengthOf(bezierState.points, 2);
 
     assert.equal(bezierState.points[0].x, 100);
@@ -390,6 +392,38 @@ describe("basic tests", () => {
 
     assert.equal(bezierState.points[1].hy, 50);
     assert.isTrue(bezierState.isClosed);
+  })
+
+  it("should select the bezier curve in object mode", () => {
+    // draw a square rotated by 45°
+    selectedTool = Tools.Bezier;
+    // point 1
+    mouseDown({ target: {}, x: 200, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 100 });
+    mouseUp({ target: {}, x: 200, y: 100 });
+    // point 2
+    mouseDown({ target: {}, x: 300, y: 200 });
+    mouseMove({ target: {}, x: 300, y: 200 });
+    mouseUp({ target: {}, x: 300, y: 200 });
+    // point 3
+    mouseDown({ target: {}, x: 200, y: 300 });
+    mouseMove({ target: {}, x: 200, y: 300 });
+    mouseUp({ target: {}, x: 200, y: 300 });
+    // point 4
+    mouseDown({ target: {}, x: 100, y: 200 });
+    mouseMove({ target: {}, x: 100, y: 200 });
+    mouseUp({ target: {}, x: 100, y: 200 });
+    // close
+    keyDown({ key: 'c' });
+
+    activeObject = objects[0];
+    switchToObjektMode();
+
+    const selectionBox = objectMode.selectionBox.$main;
+    assert.equal(selectionBox.getAttribute("x"), 100);
+    assert.equal(selectionBox.getAttribute("y"), 100);
+    assert.equal(selectionBox.getAttribute("width"), 200);
+    assert.equal(selectionBox.getAttribute("height"), 200);
   })
 
 })

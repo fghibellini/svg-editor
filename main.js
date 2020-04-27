@@ -101,7 +101,7 @@ function keyDown(evt) {
 
 // editor state
 const objects = [];
-let selectedTool = Tools.Elipse;
+let selectedTool = Tools.Bezier;
 let mode = MODE.Objekt;
 let clickedObject = null;
 let activeObject = null;
