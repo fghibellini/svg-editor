@@ -509,4 +509,48 @@ describe("basic tests", () => {
     assert.equal(selectionBox.getAttribute("height"), 400);
   })
 
+  it("changes of bezier curve dimensions should compose - top-right handle", () => {
+    // draw a square rotated by 45°
+    selectedTool = Tools.Bezier;
+    // point 1
+    mouseDown({ target: {}, x: 200, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 100 });
+    mouseUp({ target: {}, x: 200, y: 100 });
+    // point 2
+    mouseDown({ target: {}, x: 300, y: 200 });
+    mouseMove({ target: {}, x: 300, y: 200 });
+    mouseUp({ target: {}, x: 300, y: 200 });
+    // point 3
+    mouseDown({ target: {}, x: 200, y: 300 });
+    mouseMove({ target: {}, x: 200, y: 300 });
+    mouseUp({ target: {}, x: 200, y: 300 });
+    // point 4
+    mouseDown({ target: {}, x: 100, y: 200 });
+    mouseMove({ target: {}, x: 100, y: 200 });
+    mouseUp({ target: {}, x: 100, y: 200 });
+    // close
+    keyDown({ key: 'c' });
+
+    activeObject = objects[0];
+    switchToObjektMode();
+
+    const selectionBox = objectMode.selectionBox.$main;
+    const trHandleSvg = objectMode.selectionBox.$tr;
+
+    // drag (100,-100)
+    mouseDown({ target: trHandleSvg, x: 100, y: 100 });
+    mouseMove({ target: {}, x: 200, y: 50 });
+    mouseUp({ target: {}, x: 200, y: 50 });
+
+    // drag (100,-100)
+    mouseDown({ target: trHandleSvg, x: 200, y: 50 });
+    mouseMove({ target: {}, x: 300, y: 0 });
+    mouseUp({ target: {}, x: 300, y: 0 });
+
+    assert.equal(selectionBox.getAttribute("x"), 100);
+    assert.equal(selectionBox.getAttribute("y"), 0);
+    assert.equal(selectionBox.getAttribute("width"), 400);
+    assert.equal(selectionBox.getAttribute("height"), 300);
+  })
+
 })

@@ -462,23 +462,27 @@ function mouseUp(evt) {
   } else if (objectMode.mouseDownState) {
     if (objectMode.mouseDownState.sbh !== null) { // RESIZE
       const delta = vecDiff(evt, objectMode.mouseDownState);
-      if (activeObject.points_) {
-        // apply the transformation
-        activeObject.points_.forEach((p, i) => {
-          const o = bezierState.points[i];
-          Object.assign(o, p); // assign new coords while maintaining the references to SVG nodes
-        });
-        bezierState.points.forEach(onHandleChange);
-        activeObject.points_ = null;
+      if (activeObject.type === ObjectType.Bezier) {
+        if (activeObject.points_) {
+          // apply the transformation
+          activeObject.points_.forEach((p, i) => {
+            const o = bezierState.points[i];
+            Object.assign(o, p); // assign new coords while maintaining the references to SVG nodes
+          });
+          bezierState.points.forEach(onHandleChange);
+          activeObject.points_ = null;
+        }
 
-        //objectMode.initialState.x = activeObject.center.x - activeObject.rx;
-        //objectMode.initialState.y = activeObject.center.y - activeObject.ry;
-        objectMode.initialState.width = objectMode.initialState.width + delta.x;
-        objectMode.initialState.height = objectMode.initialState.height + delta.y;
+        const handle = objectMode.mouseDownState.sbh;
+        const hs = horizontalSignum(handle);
+        const vs = verticalSignum(handle);
+        objectMode.initialState.x = objectMode.initialState.x + (isLeftEdge(handle) ? 1 : 0) * delta.x;
+        objectMode.initialState.y = objectMode.initialState.y + (isTopEdge(handle) ? 1 : 0) * delta.y;
+        objectMode.initialState.width = objectMode.initialState.width + hs * delta.x;
+        objectMode.initialState.height = objectMode.initialState.height + vs * delta.y;
         //objectMode.initialState.height = 2 * activeObject.ry;
       } else {
         // ellipse
-        console.log("ELLIPSE!!!!");
         const hs = horizontalSignum(objectMode.mouseDownState.sbh);
         const vs = verticalSignum(objectMode.mouseDownState.sbh);
         activeObject.center = {
